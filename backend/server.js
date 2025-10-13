@@ -99,11 +99,37 @@ app.post('/api/analyze-checkout', async (req, res) => {
 // Verify crypto payment on-chain
 app.post('/api/verify-crypto-payment', async (req, res) => {
   try {
-    const { transactionId, txHash, expectedAmount, currency } = req.body;
+    const { transactionId, txHash, expectedAmount, currency, escrowAddress } = req.body;
 
-    console.log(`Verifying transaction ${txHash}`);
+    console.log(`✅ Verifying transaction ${txHash}`);
+    console.log(`   Expected amount: ${expectedAmount} ${currency}`);
+    console.log(`   Escrow address: ${escrowAddress || process.env.ESCROW_CONTRACT_ADDRESS}`);
 
-    // Get transaction receipt
+    // For MVP: Skip on-chain verification if using mock mode
+    if (process.env.USE_MOCK_CARDS === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('⚠️  Development mode - skipping on-chain verification');
+
+      // Store verification
+      transactions.set(transactionId, {
+        id: transactionId,
+        status: 'verified',
+        txHash,
+        amount: expectedAmount,
+        currency,
+        verifiedAt: Date.now()
+      });
+
+      return res.json({
+        success: true,
+        verified: true,
+        amount: expectedAmount,
+        txHash,
+        confirmations: 1,
+        note: 'Mock verification for development'
+      });
+    }
+
+    // Production: Verify on-chain
     const receipt = await provider.getTransactionReceipt(txHash);
 
     if (!receipt) {
@@ -114,40 +140,42 @@ app.post('/api/verify-crypto-payment', async (req, res) => {
       return res.status(400).json({ error: 'Transaction failed on-chain' });
     }
 
-    // Parse PYUSD transfer event
-    const pyusdInterface = new ethers.Interface([
-      'event Transfer(address indexed from, address indexed to, uint256 value)'
+    // Parse PaymentDeposited event from escrow contract
+    const escrowInterface = new ethers.Interface([
+      'event PaymentDeposited(uint256 indexed paymentId, address indexed payer, uint256 amount, string orderId)'
     ]);
 
-    let transferFound = false;
-    let transferAmount = 0;
+    let depositFound = false;
+    let depositAmount = 0;
+
+    const targetEscrow = escrowAddress || process.env.ESCROW_CONTRACT_ADDRESS;
 
     for (const log of receipt.logs) {
-      if (log.address.toLowerCase() === PYUSD_ADDRESS.toLowerCase()) {
+      if (log.address.toLowerCase() === targetEscrow.toLowerCase()) {
         try {
-          const parsed = pyusdInterface.parseLog(log);
-          if (parsed.name === 'Transfer' &&
-              parsed.args.to.toLowerCase() === HOT_WALLET_ADDRESS.toLowerCase()) {
-            transferFound = true;
-            transferAmount = ethers.formatUnits(parsed.args.value, 6); // PYUSD has 6 decimals
+          const parsed = escrowInterface.parseLog(log);
+          if (parsed.name === 'PaymentDeposited') {
+            depositFound = true;
+            depositAmount = ethers.formatUnits(parsed.args.amount, 6); // PYUSD has 6 decimals
+            console.log(`✅ Found PaymentDeposited event: ${depositAmount} PYUSD`);
           }
         } catch (e) {
-          // Not a Transfer event
+          // Not the event we're looking for
         }
       }
     }
 
-    if (!transferFound) {
+    if (!depositFound) {
       return res.status(400).json({
-        error: 'PYUSD transfer to hot wallet not found in transaction'
+        error: 'PaymentDeposited event not found in transaction'
       });
     }
 
     // Verify amount (with small tolerance for rounding)
-    const amountDiff = Math.abs(parseFloat(transferAmount) - parseFloat(expectedAmount));
+    const amountDiff = Math.abs(parseFloat(depositAmount) - parseFloat(expectedAmount));
     if (amountDiff > 0.01) {
       return res.status(400).json({
-        error: `Amount mismatch. Expected ${expectedAmount}, got ${transferAmount}`
+        error: `Amount mismatch. Expected ${expectedAmount}, got ${depositAmount}`
       });
     }
 
@@ -156,7 +184,7 @@ app.post('/api/verify-crypto-payment', async (req, res) => {
       id: transactionId,
       status: 'verified',
       txHash,
-      amount: transferAmount,
+      amount: depositAmount,
       currency,
       verifiedAt: Date.now()
     });
@@ -164,13 +192,13 @@ app.post('/api/verify-crypto-payment', async (req, res) => {
     res.json({
       success: true,
       verified: true,
-      amount: transferAmount,
+      amount: depositAmount,
       txHash,
       confirmations: receipt.blockNumber
     });
 
   } catch (error) {
-    console.error('Verification error:', error);
+    console.error('❌ Verification error:', error);
     res.status(500).json({ error: error.message });
   }
 });

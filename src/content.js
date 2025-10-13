@@ -54,9 +54,14 @@ const CHECKOUT_PATTERNS = {
 
 // Check if current page is a checkout page
 function isCheckoutPage() {
+  // Safety check - don't run if body isn't ready
+  if (!document.body) {
+    return false;
+  }
+
   const url = window.location.href.toLowerCase();
   const title = document.title.toLowerCase();
-  const bodyText = document.body.innerText.toLowerCase();
+  const bodyText = document.body.innerText?.toLowerCase() || '';
 
   return CHECKOUT_PATTERNS.checkoutIndicators.some(indicator =>
     url.includes(indicator) ||
@@ -81,7 +86,7 @@ function extractCheckoutDataScript() {
   for (const selector of CHECKOUT_PATTERNS.priceSelectors) {
     const element = document.querySelector(selector);
     if (element) {
-      const text = element.innerText || element.textContent;
+      const text = element.innerText || element.textContent || '';
       const priceMatch = text.match(/[\$€£]?\s*(\d+[,.]?\d*\.?\d*)/);
       if (priceMatch) {
         data.amount = parseFloat(priceMatch[1].replace(',', ''));
@@ -98,7 +103,7 @@ function extractCheckoutDataScript() {
 
   // Extract merchant name
   data.merchantName = document.querySelector('meta[property="og:site_name"]')?.content ||
-                      document.querySelector('title')?.innerText?.split('|')[0]?.trim() ||
+                      document.querySelector('title')?.textContent?.split('|')[0]?.trim() ||
                       window.location.hostname;
 
   // Find payment form fields
@@ -151,7 +156,7 @@ async function capturePageContext() {
         const style = window.getComputedStyle(el);
         return style.display !== 'none' && style.visibility !== 'hidden';
       })
-      .map(el => el.innerText)
+      .map(el => el.innerText || el.textContent || '')
       .filter(text => text && text.trim().length > 0)
       .slice(0, 100) // Limit to first 100 text elements
       .join('\n'),
@@ -263,9 +268,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Auto-detect checkout pages and notify extension
-if (isCheckoutPage()) {
-  chrome.runtime.sendMessage({
-    action: 'checkoutDetected',
-    url: window.location.href
+// Wait for DOM to be ready before checking
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isCheckoutPage()) {
+      chrome.runtime.sendMessage({
+        action: 'checkoutDetected',
+        url: window.location.href
+      });
+    }
   });
+} else {
+  // DOM already loaded
+  if (isCheckoutPage()) {
+    chrome.runtime.sendMessage({
+      action: 'checkoutDetected',
+      url: window.location.href
+    });
+  }
 }

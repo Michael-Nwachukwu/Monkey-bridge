@@ -1,6 +1,6 @@
 // Background Service Worker - Handles extension logic and messaging
 
-const API_BASE_URL = 'https://your-backend-api.com'; // Replace with your backend URL
+const API_BASE_URL = 'http://localhost:3000'; // Local backend server
 
 // State management
 let activeTransactions = new Map();
@@ -50,7 +50,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'analyzePage') {
-    analyzePage(sender.tab.id, message.useAI)
+    // Use message.tabId from popup, or sender.tab.id from content script
+    const tabId = message.tabId || sender.tab?.id;
+
+    if (!tabId) {
+      sendResponse({ success: false, error: 'No tab ID provided' });
+      return;
+    }
+
+    analyzePage(tabId, message.useAI)
       .then(data => sendResponse({ success: true, data }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Async
@@ -148,7 +156,8 @@ async function processCryptoPayment(paymentData) {
         transactionId,
         txHash,
         expectedAmount: amount,
-        currency
+        currency,
+        escrowAddress: paymentData.escrowAddress
       })
     });
 

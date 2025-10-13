@@ -28,24 +28,40 @@ class WalletBridge {
 
     async checkWalletAvailable() {
         try {
+            console.log('🔵 [WalletBridge] checkWalletAvailable - starting');
             const tab = await this.getActiveTab();
+            console.log('🔵 [WalletBridge] Got active tab:', tab.id, tab.url);
 
+            // Check if we can inject into this tab
+            if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') ||
+                tab.url.startsWith('about:') || tab.url.startsWith('edge://')) {
+                console.warn('⚠️ [WalletBridge] Cannot inject into restricted page:', tab.url);
+                return { hasWallet: false, error: 'Restricted page - please navigate to a regular website' };
+            }
+
+            console.log('🔵 [WalletBridge] Executing script to check for window.ethereum');
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 world: 'MAIN',
                 func: () => {
-                    return {
+                    console.log('🟢 [MAIN WORLD] Checking for window.ethereum');
+                    const result = {
                         hasWallet: typeof window.ethereum !== 'undefined',
                         isMetaMask: window.ethereum?.isMetaMask || false,
                         isRabby: window.ethereum?.isRabby || false
                     };
+                    console.log('🟢 [MAIN WORLD] Result:', result);
+                    return result;
                 }
             });
 
-            return results[0]?.result || { hasWallet: false };
+            console.log('🔵 [WalletBridge] Script execution results:', results);
+            const result = results[0]?.result || { hasWallet: false };
+            console.log('🔵 [WalletBridge] Final result:', result);
+            return result;
         } catch (error) {
-            console.error('Failed to check wallet:', error);
-            return { hasWallet: false };
+            console.error('🔴 [WalletBridge] Failed to check wallet:', error);
+            return { hasWallet: false, error: error.message };
         }
     }
 

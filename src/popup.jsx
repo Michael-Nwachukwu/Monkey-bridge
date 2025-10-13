@@ -31,6 +31,7 @@ const Popup = () => {
     const [escrowAddress, setEscrowAddress] = useState('');
     const [pyusdAddress, setPyusdAddress] = useState('');
     const [walletBridge] = useState(() => new WalletBridge());
+    const [virtualCard, setVirtualCard] = useState(null);
 
     useEffect(() => {
         checkConnection();
@@ -69,7 +70,8 @@ const Popup = () => {
             console.log('🟣 [POPUP] Wallet availability:', walletInfo);
 
             if (!walletInfo.hasWallet) {
-                alert('Please install MetaMask or Rabby wallet!');
+                const errorMsg = walletInfo.error || 'Please install MetaMask or Rabby wallet!';
+                alert(errorMsg);
                 setLoading(false);
                 return;
             }
@@ -181,7 +183,11 @@ const Popup = () => {
         setLoading(true);
         setCurrentStep('analyzing');
         try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+            if (!tab || !tab.id) {
+                throw new Error('No active tab found');
+            }
 
             const response = await chrome.runtime.sendMessage({
                 action: 'analyzePage',
@@ -189,11 +195,11 @@ const Popup = () => {
                 useAI: useAI
             });
 
-            if (response.success) {
+            if (response && response.success) {
                 setCheckoutData(response.data);
                 setCurrentStep('idle');
             } else {
-                alert(`Failed to analyze page: ${response.error}`);
+                alert(`Failed to analyze page: ${response?.error || 'Unknown error'}`);
                 setCurrentStep('idle');
             }
         } catch (error) {
@@ -294,21 +300,31 @@ const Popup = () => {
 
             if (paymentResult.success) {
                 setCurrentStep('complete');
-                setTxStatus('Payment successful! Filling checkout form...');
+                setTxStatus('Payment successful!');
 
-                // Step 4: Fill payment form with virtual card
+                // Save virtual card to state
                 if (paymentResult.virtualCard) {
-                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                    await chrome.tabs.sendMessage(tab.id, {
-                        action: 'fillPaymentForm',
-                        virtualCard: paymentResult.virtualCard
-                    });
+                    setVirtualCard(paymentResult.virtualCard);
+
+                    // Step 4: Try to fill payment form with virtual card
+                    try {
+                        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+                        if (tab && tab.id) {
+                            await chrome.tabs.sendMessage(tab.id, {
+                                action: 'fillPaymentForm',
+                                virtualCard: paymentResult.virtualCard
+                            });
+                        }
+                    } catch (tabError) {
+                        console.warn('Could not fill payment form (tab may have closed):', tabError);
+                        // Don't fail the payment, just skip form filling
+                    }
                 }
 
                 // Update balance
                 await updateBalances(provider, account, pyusdAddress);
 
-                alert('Payment completed successfully!');
+                alert('Payment completed successfully! Virtual card details are displayed below.');
             } else {
                 throw new Error(paymentResult.error || 'Backend payment failed');
             }
@@ -538,6 +554,32 @@ const Popup = () => {
                     </button>
                     <p className="text-xs text-yellow-600 mt-2">
                         Refund available after timeout period (if payment not processed)
+                    </p>
+                </div>
+            )}
+
+            {/* Virtual Card Display */}
+            {virtualCard && currentStep === 'complete' && (
+                <div className="bg-green-50 border border-green-300 rounded-lg p-4 mb-4">
+                    <h3 className="text-lg font-semibold text-green-800 mb-3">💳 Virtual Card Details</h3>
+                    <div className="bg-white p-4 rounded-lg space-y-3">
+                        <div>
+                            <p className="text-xs text-gray-500">Card Number</p>
+                            <p className="font-mono font-semibold text-lg">{virtualCard.cardNumber || virtualCard.number}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-xs text-gray-500">Expiry</p>
+                                <p className="font-mono font-semibold">{virtualCard.expiry}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-500">CVV</p>
+                                <p className="font-mono font-semibold">{virtualCard.cvv}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p className="text-xs text-green-700 mt-3">
+                        ✅ Use this card to complete your purchase on the merchant site
                     </p>
                 </div>
             )}
