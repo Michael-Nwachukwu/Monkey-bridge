@@ -24,7 +24,7 @@ module.exports = {
     },
     // Ethereum Mainnet
     mainnet: {
-      url: process.env.RPC_URL,
+      url: process.env.SEPOLIA_RPC_URL || "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 1
     },

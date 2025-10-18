@@ -78,3 +78,77 @@ Virtual card generation error: StripeInvalidRequestError: Your account is not se
   setup_intent: undefined,
   source: undefined
 }
+✅ Verifying transaction 0xaeff10c7e002f8f4206e1293e03859f130a85939f0cb6d65cddbafb2713e4365
+   Expected amount: 25.96 EUR
+   Escrow address: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+⚠️  Development mode - skipping on-chain verification
+Executing payment for transaction tx_1760398203194_wu6kn7bne
+Virtual card generation error: StripeInvalidRequestError: Your account is not set up to use Issuing. Please visit https://dashboard.stripe.com/issuing/overview to get started.
+    at StripeError.generate (/Users/mac/Documents/projects/monkey/backend/node_modules/stripe/cjs/Error.js:10:20)
+    at res.toJSON.then.Error_js_1.StripeAPIError.message (/Users/mac/Documents/projects/monkey/backend/node_modules/stripe/cjs/RequestSender.js:105:54)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  type: 'StripeInvalidRequestError',
+  raw: {
+    message: 'Your account is not set up to use Issuing. Please visit https://dashboard.stripe.com/issuing/overview to get started.',
+    request_log_url: 'https://dashboard.stripe.com/test/logs/req_OlcreLf9eSff0H?t=1760398209',
+    type: 'invalid_request_error',
+    headers: {
+      server: 'nginx',
+      date: 'Mon, 13 Oct 2025 23:30:09 GMT',
+      'content-type': 'application/json',
+      'content-length': '290',
+      connection: 'keep-alive',
+      'access-control-allow-credentials': 'true',
+      'access-control-allow-methods': 'GET, HEAD, PUT, PATCH, POST, DELETE',
+      'access-control-allow-origin': '*',
+      'access-control-expose-headers': 'Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required, X-Stripe-Privileged-Session-Required',
+      'access-control-max-age': '300',
+      'cache-control': 'no-cache, no-store',
+      'content-security-policy': "base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src 'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=Akiv1ybDBGlVs2BoOkYigoDZNPlKA8f97puwqYWztD9urIRptSexoZdkT9FDKJTkn-FjiW3xWOld5yu5",
+      'request-id': 'req_OlcreLf9eSff0H',
+      'stripe-version': '2023-10-16',
+      vary: 'Origin',
+      'x-stripe-priority-routing-enabled': 'true',
+      'x-stripe-routing-context-priority-tier': 'api-testmode',
+      'x-wc': 'ABGHIJ',
+      'strict-transport-security': 'max-age=63072000; includeSubDomains; preload'
+    },
+    statusCode: 400,
+    requestId: 'req_OlcreLf9eSff0H'
+  },
+  rawType: 'invalid_request_error',
+  code: undefined,
+  doc_url: undefined,
+  param: undefined,
+  detail: undefined,
+  headers: {
+    server: 'nginx',
+    date: 'Mon, 13 Oct 2025 23:30:09 GMT',
+    'content-type': 'application/json',
+    'content-length': '290',
+    connection: 'keep-alive',
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': 'GET, HEAD, PUT, PATCH, POST, DELETE',
+    'access-control-allow-origin': '*',
+    'access-control-expose-headers': 'Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required, X-Stripe-Privileged-Session-Required',
+    'access-control-max-age': '300',
+    'cache-control': 'no-cache, no-store',
+    'content-security-policy': "base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src 'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=Akiv1ybDBGlVs2BoOkYigoDZNPlKA8f97puwqYWztD9urIRptSexoZdkT9FDKJTkn-FjiW3xWOld5yu5",
+    'request-id': 'req_OlcreLf9eSff0H',
+    'stripe-version': '2023-10-16',
+    vary: 'Origin',
+    'x-stripe-priority-routing-enabled': 'true',
+    'x-stripe-routing-context-priority-tier': 'api-testmode',
+    'x-wc': 'ABGHIJ',
+    'strict-transport-security': 'max-age=63072000; includeSubDomains; preload'
+  },
+  requestId: 'req_OlcreLf9eSff0H',
+  statusCode: 400,
+  charge: undefined,
+  decline_code: undefined,
+  payment_intent: undefined,
+  payment_method: undefined,
+  payment_method_type: undefined,
+  setup_intent: undefined,
+  source: undefined
+}

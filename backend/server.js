@@ -412,6 +412,29 @@ Return a JSON object with this structure:
 // Generate virtual card using Stripe Issuing
 async function generateVirtualCard(amount, currency) {
   try {
+    // Check if we should use mock cards (development mode or USE_MOCK_CARDS flag)
+    if (process.env.USE_MOCK_CARDS === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('🃏 Using mock virtual card for development');
+
+      // Generate random-looking test card data
+      const mockCards = [
+        { number: '4242424242424242', expiry: '12/26', cvv: '123' },
+        { number: '5555555555554444', expiry: '03/27', cvv: '456' },
+        { number: '378282246310005', expiry: '08/25', cvv: '789' }
+      ];
+
+      // Return a random mock card
+      const randomCard = mockCards[Math.floor(Math.random() * mockCards.length)];
+
+      return {
+        ...randomCard,
+        cardId: `mock_card_${Date.now()}`
+      };
+    }
+
+    // Production: Try to create real Stripe Issuing card
+    console.log('💳 Creating real Stripe virtual card');
+
     // Create a cardholder (you'd typically have this set up already)
     const cardholderResult = await getOrCreateCardholder();
 
@@ -445,14 +468,19 @@ async function generateVirtualCard(amount, currency) {
     };
 
   } catch (error) {
-    console.error('Virtual card generation error:', error);
+    console.error('❌ Virtual card generation error:', error.message);
 
-    // Fallback: Return test card for development
-    if (process.env.NODE_ENV === 'development') {
+    // If Stripe Issuing is not enabled, fall back to mock cards
+    if (error.type === 'StripeInvalidRequestError' && error.message.includes('not set up to use Issuing')) {
+      console.warn('⚠️  Stripe Issuing not enabled. Falling back to mock cards.');
+      console.warn('   To enable Stripe Issuing, visit: https://dashboard.stripe.com/issuing/overview');
+
       return {
         number: '4242424242424242',
-        expiry: '12/25',
-        cvv: '123'
+        expiry: '12/26',
+        cvv: '123',
+        cardId: `mock_card_${Date.now()}`,
+        isMock: true
       };
     }
 

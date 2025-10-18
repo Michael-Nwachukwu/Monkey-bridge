@@ -32,6 +32,8 @@ const Popup = () => {
     const [pyusdAddress, setPyusdAddress] = useState('');
     const [walletBridge] = useState(() => new WalletBridge());
     const [virtualCard, setVirtualCard] = useState(null);
+    const [autoFillStatus, setAutoFillStatus] = useState(null);
+    const [copiedField, setCopiedField] = useState(null);
 
     useEffect(() => {
         checkConnection();
@@ -235,7 +237,9 @@ const Popup = () => {
 
             // Step 1: Approve escrow contract to spend PYUSD
             setTxStatus('Approving PYUSD spend...');
-            const amountInUnits = ethers.parseUnits(totalAmount.toString(), 6);
+            // Fix: Round to 6 decimals to avoid precision errors with PYUSD
+            const totalAmountFixed = parseFloat(totalAmount.toFixed(6));
+            const amountInUnits = ethers.parseUnits(totalAmountFixed.toString(), 6);
 
             // Check current allowance
             const currentAllowance = await pyusdContract.allowance(account, escrowAddress);
@@ -252,7 +256,9 @@ const Popup = () => {
 
             const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const merchantUrl = checkoutData.url || window.location.href;
-            const amountOnly = ethers.parseUnits(amountInPyusd.toString(), 6);
+            // Fix: Round to 6 decimals to avoid precision errors
+            const amountInPyusdFixed = parseFloat(amountInPyusd.toFixed(6));
+            const amountOnly = ethers.parseUnits(amountInPyusdFixed.toString(), 6);
 
             const depositTx = await escrowContract.depositPayment(
                 amountOnly,
@@ -310,14 +316,32 @@ const Popup = () => {
                     try {
                         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
                         if (tab && tab.id) {
-                            await chrome.tabs.sendMessage(tab.id, {
+                            const fillResult = await chrome.tabs.sendMessage(tab.id, {
                                 action: 'fillPaymentForm',
                                 virtualCard: paymentResult.virtualCard
                             });
+
+                            if (fillResult && fillResult.success) {
+                                setAutoFillStatus({
+                                    success: true,
+                                    message: 'Payment form auto-filled successfully!',
+                                    filledFields: fillResult.filledFields
+                                });
+                            } else {
+                                setAutoFillStatus({
+                                    success: false,
+                                    message: 'Could not auto-fill form. Please copy card details manually.',
+                                    reason: 'Payment fields not found or in iframe'
+                                });
+                            }
                         }
                     } catch (tabError) {
-                        console.warn('Could not fill payment form (tab may have closed):', tabError);
-                        // Don't fail the payment, just skip form filling
+                        console.warn('Could not fill payment form:', tabError);
+                        setAutoFillStatus({
+                            success: false,
+                            message: 'Could not auto-fill form. Please copy card details manually.',
+                            reason: tabError.message
+                        });
                     }
                 }
 
@@ -395,6 +419,17 @@ const Popup = () => {
         const amount = parseFloat(checkoutData.amount);
         const fee = (amount * platformFee) / 100;
         return { amount, fee, total: amount + fee };
+    };
+
+    const copyToClipboard = async (text, fieldName) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedField(fieldName);
+            setTimeout(() => setCopiedField(null), 2000);
+        } catch (error) {
+            console.error('Copy failed:', error);
+            alert('Failed to copy to clipboard');
+        }
     };
 
     return (
@@ -562,24 +597,71 @@ const Popup = () => {
             {virtualCard && currentStep === 'complete' && (
                 <div className="bg-green-50 border border-green-300 rounded-lg p-4 mb-4">
                     <h3 className="text-lg font-semibold text-green-800 mb-3">💳 Virtual Card Details</h3>
+
+                    {/* Auto-fill Status Notification */}
+                    {autoFillStatus && (
+                        <div className={`mb-3 p-3 rounded-lg ${autoFillStatus.success ? 'bg-green-100 border border-green-300' : 'bg-yellow-100 border border-yellow-300'}`}>
+                            <p className={`text-sm font-medium ${autoFillStatus.success ? 'text-green-800' : 'text-yellow-800'}`}>
+                                {autoFillStatus.success ? '✅' : '⚠️'} {autoFillStatus.message}
+                            </p>
+                            {autoFillStatus.success && autoFillStatus.filledFields && (
+                                <p className="text-xs text-green-700 mt-1">
+                                    Filled: {Object.entries(autoFillStatus.filledFields).filter(([_, v]) => v).map(([k]) => k).join(', ')}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     <div className="bg-white p-4 rounded-lg space-y-3">
+                        {/* Card Number with Copy Button */}
                         <div>
-                            <p className="text-xs text-gray-500">Card Number</p>
+                            <div className="flex justify-between items-center mb-1">
+                                <p className="text-xs text-gray-500">Card Number</p>
+                                <button
+                                    onClick={() => copyToClipboard(virtualCard.cardNumber || virtualCard.number, 'cardNumber')}
+                                    className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors"
+                                >
+                                    {copiedField === 'cardNumber' ? '✓ Copied!' : 'Copy'}
+                                </button>
+                            </div>
                             <p className="font-mono font-semibold text-lg">{virtualCard.cardNumber || virtualCard.number}</p>
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
+                            {/* Expiry with Copy Button */}
                             <div>
-                                <p className="text-xs text-gray-500">Expiry</p>
+                                <div className="flex justify-between items-center mb-1">
+                                    <p className="text-xs text-gray-500">Expiry</p>
+                                    <button
+                                        onClick={() => copyToClipboard(virtualCard.expiry, 'expiry')}
+                                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors"
+                                    >
+                                        {copiedField === 'expiry' ? '✓' : 'Copy'}
+                                    </button>
+                                </div>
                                 <p className="font-mono font-semibold">{virtualCard.expiry}</p>
                             </div>
+
+                            {/* CVV with Copy Button */}
                             <div>
-                                <p className="text-xs text-gray-500">CVV</p>
+                                <div className="flex justify-between items-center mb-1">
+                                    <p className="text-xs text-gray-500">CVV</p>
+                                    <button
+                                        onClick={() => copyToClipboard(virtualCard.cvv, 'cvv')}
+                                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors"
+                                    >
+                                        {copiedField === 'cvv' ? '✓' : 'Copy'}
+                                    </button>
+                                </div>
                                 <p className="font-mono font-semibold">{virtualCard.cvv}</p>
                             </div>
                         </div>
                     </div>
+
                     <p className="text-xs text-green-700 mt-3">
-                        ✅ Use this card to complete your purchase on the merchant site
+                        {autoFillStatus?.success
+                            ? '✅ Form auto-filled! Verify and complete your purchase.'
+                            : '📋 Copy these details to complete your purchase on the merchant site.'}
                     </p>
                 </div>
             )}
