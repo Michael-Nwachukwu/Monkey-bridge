@@ -16,8 +16,8 @@ export const CONTRACTS = {
   },
   // Sepolia Testnet
   sepolia: {
-    escrow: '0x...', // Update with deployed address
-    pyusd: '0x...', // Mock PYUSD on testnet
+    escrow: '0x87E2202dD12a985afD0cC8f27511d8f428574f68',
+    pyusd: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9', // PYUSD on Sepolia
     chainId: 11155111
   },
   // Polygon Mumbai Testnet
@@ -84,7 +84,7 @@ export const API_CONFIG = {
 
 // Default settings
 export const DEFAULT_SETTINGS = {
-  preferredNetwork: 'mumbai', // Start with testnet
+  preferredNetwork: 'sepolia', // Sepolia testnet
   useAI: false,
   maxSlippage: 0.5, // 0.5%
   escrowTimeout: 3600, // 1 hour in seconds

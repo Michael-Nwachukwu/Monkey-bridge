@@ -28,24 +28,11 @@ module.exports = {
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 1
     },
-    // Polygon Mainnet (lower gas fees)
-    polygon: {
-      url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
-      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
-      chainId: 137,
-      gasPrice: 100000000000 // 100 gwei
-    },
     // Sepolia Testnet
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/your-api-key",
+      url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/AXZTpQuCryhmuSxFjmGQ5QNpExmCcLhq",
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 11155111
-    },
-    // Polygon Mumbai Testnet
-    mumbai: {
-      url: process.env.MUMBAI_RPC_URL || "https://rpc-mumbai.maticvigil.com",
-      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
-      chainId: 80001
     }
   },
   etherscan: {

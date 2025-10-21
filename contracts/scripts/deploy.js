@@ -11,15 +11,6 @@ async function main() {
   const balance = await hre.ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", hre.ethers.formatEther(balance), "ETH");
 
-  // PYUSD addresses on different networks
-  const PYUSD_ADDRESSES = {
-    mainnet: "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8",
-    polygon: "0x9aA........", // Update with actual Polygon PYUSD address
-    sepolia: "0x...", // Deploy mock PYUSD for testing
-    mumbai: "0x...", // Deploy mock PYUSD for testing
-    localhost: "0x..." // Will deploy mock
-  };
-
   // Backend wallet address (should be in .env)
   const backendWallet = process.env.BACKEND_WALLET || deployer.address;
 
@@ -27,10 +18,13 @@ async function main() {
   const networkName = hre.network.name;
   console.log("Network:", networkName);
 
-  let pyusdAddress = PYUSD_ADDRESSES[networkName];
+  let pyusdAddress;
 
-  // Deploy mock PYUSD for testing on testnets/localhost
-  if (!pyusdAddress || networkName === "localhost" || networkName === "hardhat") {
+  // Use actual PYUSD address on Sepolia, deploy mock on localhost/hardhat
+  if (networkName === "sepolia") {
+    pyusdAddress = "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9"; // Sepolia PYUSD
+    console.log("Using Sepolia PYUSD at:", pyusdAddress);
+  } else if (networkName === "localhost" || networkName === "hardhat") {
     console.log("Deploying Mock PYUSD for testing...");
     const MockPYUSD = await hre.ethers.getContractFactory("MockERC20");
     const mockPYUSD = await MockPYUSD.deploy(
@@ -46,6 +40,8 @@ async function main() {
     const mintAmount = hre.ethers.parseUnits("10000", 6); // 10,000 PYUSD
     await mockPYUSD.mint(deployer.address, mintAmount);
     console.log("Minted 10,000 test PYUSD to deployer");
+  } else {
+    throw new Error(`Unsupported network: ${networkName}. Please use sepolia or localhost.`);
   }
 
   // Deploy PaymentEscrow

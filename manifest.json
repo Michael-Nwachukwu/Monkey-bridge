@@ -3,6 +3,11 @@
     "name": "Monkey Bridge",
     "version": "1.0.0",
     "description": "Pay with crypto on any website. Connects your wallet to checkout pages for seamless PYUSD payments.",
+    "icons": {
+        "16": "ooga-logo.png",
+        "48": "ooga-logo.png",
+        "128": "ooga-logo.png"
+    },
     "permissions": [
         "activeTab",
         "storage",
@@ -17,7 +22,12 @@
         "service_worker": "background.js"
     },
     "action": {
-        "default_title": "Open Monkey Bridge"
+        "default_title": "Open Monkey Bridge",
+        "default_icon": {
+            "16": "ooga-logo.png",
+            "48": "ooga-logo.png",
+            "128": "ooga-logo.png"
+        }
     },
     "side_panel": {
         "default_path": "index.html"
