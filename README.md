@@ -31,7 +31,7 @@ Monkey Bridge is a Chrome extension that enables users to pay with PYUSD cryptoc
 
 ## Project Structure
 
-\`\`\`
+```
 monkey/
 ├── src/                          # Extension frontend
 │   ├── popup.jsx                 # Main UI (React + Tailwind)
@@ -64,7 +64,7 @@ monkey/
 ├── package.json                  # Frontend dependencies
 ├── vite.config.js                # Build configuration (Vite + Tailwind)
 └── README.md                     # This file
-\`\`\`
+```
 
 ---
 
@@ -141,7 +141,7 @@ PYUSD (PayPal USD) is a regulated stablecoin issued by Paxos, backed 1:1 by USD 
 
 ### User → Smart Contract → Backend → Merchant
 
-\`\`\`
+```
 ┌──────────────────────────────────────────────────────────────┐
 │ 1. USER BROWSES TO CHECKOUT PAGE                             │
 └───────────────────┬──────────────────────────────────────────┘
@@ -230,7 +230,7 @@ PYUSD (PayPal USD) is a regulated stablecoin issued by Paxos, backed 1:1 by USD 
 │     - Status updated: Completed                              │
 │     - Event emitted: PaymentReleased(paymentId, ...)         │
 └──────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 ---
 
@@ -248,14 +248,14 @@ Before you begin, make sure you have:
 
 ### 1. Clone the Repository
 
-\`\`\`bash
+```bash
 git clone https://github.com/yourusername/monkey.git
 cd monkey
-\`\`\`
+```
 
 ### 2. Install Dependencies
 
-\`\`\`bash
+```bash
 # Install extension dependencies
 npm install
 
@@ -266,17 +266,17 @@ npm install
 # Install contract dependencies (optional - only if deploying)
 cd ../contracts
 npm install
-\`\`\`
+```
 
 ### 3. Configure Backend Environment
 
-\`\`\`bash
+```bash
 cd backend
-\`\`\`
+```
 
 Create or edit \`.env\` file:
 
-\`\`\`env
+```env
 # Server Configuration
 PORT=3000
 NODE_ENV=development
@@ -298,7 +298,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_key
 # AI Configuration (optional)
 GROQ_API_KEY=your_groq_api_key
 AI_PROVIDER=groq
-\`\`\`
+```
 
 **Get an Alchemy API Key:**
 1. Visit https://www.alchemy.com
@@ -308,16 +308,16 @@ AI_PROVIDER=groq
 
 ### 4. Start the Backend Server
 
-\`\`\`bash
+```bash
 cd backend
 npm start
-\`\`\`
+```
 
 You should see:
-\`\`\`
+```
 CryptoPay Backend running on port 3000
 Hot wallet: 0xB47d52d931cC06e4269D5EB87Cb1D8F2A07e9e62
-\`\`\`
+```
 
 **Keep this terminal running.**
 
@@ -325,10 +325,10 @@ Hot wallet: 0xB47d52d931cC06e4269D5EB87Cb1D8F2A07e9e62
 
 Open a new terminal:
 
-\`\`\`bash
+```bash
 cd /path/to/monkey
 npm run build
-\`\`\`
+```
 
 This creates a production build in the \`dist/\` folder.
 
@@ -397,7 +397,7 @@ You may need to:
 
 ## Development Commands
 
-\`\`\`bash
+```bash
 # Extension
 npm run build        # Production build
 npm run dev          # Development mode with hot reload
@@ -412,7 +412,7 @@ npx hardhat compile  # Compile contracts
 npx hardhat test     # Run tests
 npx hardhat node     # Start local blockchain
 npx hardhat run scripts/deploy.js --network sepolia  # Deploy to Sepolia
-\`\`\`
+```
 
 ---
 
