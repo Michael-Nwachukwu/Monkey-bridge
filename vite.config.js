@@ -10,9 +10,9 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 popup: 'index.html',
-                background: 'src/background.js',
-                content: 'src/content.js',
-                injected: 'src/injected.js'
+                background: 'src/background.ts',
+                content: 'src/content.ts',
+                injected: 'src/injected.ts'
             },
             output: {
                 entryFileNames: '[name].js',

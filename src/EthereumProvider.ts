@@ -1,22 +1,52 @@
 // Ethereum Provider Bridge for Side Panel
 // Mimics window.ethereum API but communicates with injected wallet via content script
 
+interface RequestArguments {
+    method: string;
+    params?: any[];
+}
+
+interface PendingRequest {
+    resolve: (value: any) => void;
+    reject: (reason?: any) => void;
+}
+
+interface WalletMessage {
+    type: string;
+    requestId?: number;
+    success?: boolean;
+    data?: any;
+    error?: string;
+    event?: string;
+    hasProvider?: boolean;
+}
+
+type EventCallback = (data: any) => void;
+
 class EthereumProvider {
+    private requestId: number;
+    private pendingRequests: Map<number, PendingRequest>;
+    private eventListeners: Map<string, EventCallback[]>;
+    private isConnected: boolean;
+    private _initialized: boolean;
+    private _initPromise: Promise<boolean> | null;
+    private currentTabId?: number;
+
     constructor() {
         this.requestId = 0;
-        this.pendingRequests = new Map();
-        this.eventListeners = new Map();
+        this.pendingRequests = new Map<number, PendingRequest>();
+        this.eventListeners = new Map<string, EventCallback[]>();
         this.isConnected = false;
         this._initialized = false;
         this._initPromise = null;
 
         // Listen for messages from background script (forwarded from content script)
-        chrome.runtime.onMessage.addListener((message) => {
+        chrome.runtime.onMessage.addListener((message: WalletMessage) => {
             this._handleMessage(message);
         });
     }
 
-    async initialize() {
+    async initialize(): Promise<boolean> {
         if (this._initialized) {
             console.log('🟣 [PROVIDER] Already initialized');
             return true;
@@ -33,7 +63,7 @@ class EthereumProvider {
                 // Get active tab - use lastFocusedWindow for side panel compatibility
                 const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
 
-                if (!tab) {
+                if (!tab || !tab.id) {
                     console.error('🔴 [PROVIDER] No active tab found');
                     resolve(false);
                     return;
@@ -75,7 +105,7 @@ class EthereumProvider {
                             await new Promise(r => setTimeout(r, retryDelay));
                         }
                     } catch (error) {
-                        console.log('🟡 [PROVIDER] Attempt failed:', error.message);
+                        console.log('🟡 [PROVIDER] Attempt failed:', (error as Error).message);
                         attempts++;
                         if (attempts < maxAttempts) {
                             await new Promise(r => setTimeout(r, retryDelay));
@@ -94,13 +124,13 @@ class EthereumProvider {
         return this._initPromise;
     }
 
-    _handleMessage(message) {
+    private _handleMessage(message: WalletMessage): void {
         if (message.type === 'WALLET_RESPONSE') {
             const { requestId, success, data, error } = message;
-            const pending = this.pendingRequests.get(requestId);
+            const pending = this.pendingRequests.get(requestId!);
 
             if (pending) {
-                this.pendingRequests.delete(requestId);
+                this.pendingRequests.delete(requestId!);
                 if (success) {
                     pending.resolve(data);
                 } else {
@@ -111,15 +141,15 @@ class EthereumProvider {
 
         if (message.type === 'WALLET_EVENT') {
             const { event, data } = message;
-            this._emit(event, data);
+            this._emit(event!, data);
         }
 
         if (message.type === 'WALLET_READY') {
-            this._initialized = message.hasProvider;
+            this._initialized = message.hasProvider!;
         }
     }
 
-    async request(args) {
+    async request(args: RequestArguments): Promise<any> {
         if (!this._initialized) {
             const initialized = await this.initialize();
             if (!initialized) {
@@ -145,7 +175,7 @@ class EthereumProvider {
         try {
             if (!this.currentTabId) {
                 const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-                if (!tab) {
+                if (!tab || !tab.id) {
                     throw new Error('No active tab found');
                 }
                 this.currentTabId = tab.id;
@@ -159,23 +189,23 @@ class EthereumProvider {
             });
         } catch (error) {
             this.pendingRequests.delete(requestId);
-            throw new Error('Failed to communicate with wallet: ' + error.message);
+            throw new Error('Failed to communicate with wallet: ' + (error as Error).message);
         }
 
         return promise;
     }
 
     // Event listeners
-    on(event, callback) {
+    on(event: string, callback: EventCallback): void {
         if (!this.eventListeners.has(event)) {
             this.eventListeners.set(event, []);
         }
-        this.eventListeners.get(event).push(callback);
+        this.eventListeners.get(event)!.push(callback);
     }
 
-    removeListener(event, callback) {
+    removeListener(event: string, callback: EventCallback): void {
         if (this.eventListeners.has(event)) {
-            const callbacks = this.eventListeners.get(event);
+            const callbacks = this.eventListeners.get(event)!;
             const index = callbacks.indexOf(callback);
             if (index > -1) {
                 callbacks.splice(index, 1);
@@ -183,9 +213,9 @@ class EthereumProvider {
         }
     }
 
-    _emit(event, data) {
+    private _emit(event: string, data: any): void {
         if (this.eventListeners.has(event)) {
-            this.eventListeners.get(event).forEach(callback => {
+            this.eventListeners.get(event)!.forEach(callback => {
                 try {
                     callback(data);
                 } catch (error) {
@@ -196,10 +226,10 @@ class EthereumProvider {
     }
 
     // Check if wallet is available
-    static async isAvailable() {
+    static async isAvailable(): Promise<boolean> {
         try {
             const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-            if (!tab) return false;
+            if (!tab || !tab.id) return false;
 
             // Add retry logic for content script readiness
             let attempts = 0;

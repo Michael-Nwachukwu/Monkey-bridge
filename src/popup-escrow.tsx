@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import { ethers, Contract, BrowserProvider, Signer } from 'ethers';
 import './index.css';
 import {
     ESCROW_ABI,
@@ -8,31 +8,69 @@ import {
     getNetworkName,
     PaymentStatus,
     SUPPORTED_CHAINS
-} from './config.js';
+} from './config';
 
-const Popup = () => {
-    const [provider, setProvider] = useState(null);
-    const [signer, setSigner] = useState(null);
-    const [account, setAccount] = useState('');
-    const [chainId, setChainId] = useState(null);
-    const [ethBalance, setEthBalance] = useState('0');
-    const [pyusdBalance, setPyusdBalance] = useState('0');
-    const [checkoutData, setCheckoutData] = useState(null);
-    const [isConnected, setIsConnected] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [txStatus, setTxStatus] = useState(null);
-    const [currentStep, setCurrentStep] = useState('idle');
-    const [useAI, setUseAI] = useState(false);
-    const [paymentId, setPaymentId] = useState(null);
-    const [platformFee, setPlatformFee] = useState(0);
-    const [escrowAddress, setEscrowAddress] = useState('');
-    const [pyusdAddress, setPyusdAddress] = useState('');
+// Extend window interface for ethereum
+declare global {
+    interface Window {
+        ethereum?: any;
+    }
+}
+
+// Interfaces
+interface CheckoutData {
+    url?: string;
+    amount: string;
+    currency: string;
+    merchantName: string;
+    method?: string;
+}
+
+interface PaymentData {
+    paymentId: string;
+    escrowAddress: string;
+    txHash: string;
+    amount: number;
+    currency: string;
+    checkoutData: CheckoutData;
+    orderId: string;
+}
+
+interface PaymentResult {
+    success: boolean;
+    virtualCard?: {
+        cardNumber: string;
+        expiry: string;
+        cvv: string;
+    };
+    error?: string;
+}
+
+type CurrentStep = 'idle' | 'analyzing' | 'approving' | 'depositing' | 'processing' | 'complete';
+
+const Popup: React.FC = () => {
+    const [provider, setProvider] = useState<BrowserProvider | null>(null);
+    const [signer, setSigner] = useState<Signer | null>(null);
+    const [account, setAccount] = useState<string>('');
+    const [chainId, setChainId] = useState<number | null>(null);
+    const [ethBalance, setEthBalance] = useState<string>('0');
+    const [pyusdBalance, setPyusdBalance] = useState<string>('0');
+    const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null);
+    const [isConnected, setIsConnected] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [txStatus, setTxStatus] = useState<string | null>(null);
+    const [currentStep, setCurrentStep] = useState<CurrentStep>('idle');
+    const [useAI, setUseAI] = useState<boolean>(false);
+    const [paymentId, setPaymentId] = useState<string | null>(null);
+    const [platformFee, setPlatformFee] = useState<number>(0);
+    const [escrowAddress, setEscrowAddress] = useState<string>('');
+    const [pyusdAddress, setPyusdAddress] = useState<string>('');
 
     useEffect(() => {
         checkConnection();
     }, []);
 
-    const checkConnection = async () => {
+    const checkConnection = async (): Promise<void> => {
         if (window.ethereum) {
             try {
                 const accounts = await window.ethereum.request({
@@ -47,7 +85,7 @@ const Popup = () => {
         }
     };
 
-    const connectWallet = async () => {
+    const connectWallet = async (): Promise<void> => {
         if (!window.ethereum) {
             alert('Please install MetaMask or Rabby wallet!');
             return;
@@ -94,13 +132,13 @@ const Popup = () => {
 
         } catch (err) {
             console.error('Wallet connection failed:', err);
-            alert(`Failed to connect: ${err.message}`);
+            alert(`Failed to connect: ${(err as Error).message}`);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadPlatformFee = async (prov, escrowAddr) => {
+    const loadPlatformFee = async (prov: BrowserProvider, escrowAddr: string): Promise<void> => {
         try {
             const escrow = new ethers.Contract(escrowAddr, ESCROW_ABI, prov);
             const feeBps = await escrow.platformFeeBps();
@@ -111,7 +149,7 @@ const Popup = () => {
         }
     };
 
-    const updateBalances = async (prov, userAccount, pyusdAddr) => {
+    const updateBalances = async (prov: BrowserProvider, userAccount: string, pyusdAddr: string): Promise<void> => {
         try {
             // Get ETH balance
             const ethBal = await prov.getBalance(userAccount);
@@ -126,20 +164,22 @@ const Popup = () => {
         }
     };
 
-    const handleAccountsChanged = (accounts) => {
+    const handleAccountsChanged = (accounts: string[]): void => {
         if (accounts.length === 0) {
             disconnectWallet();
         } else {
             setAccount(accounts[0]);
-            updateBalances(provider, accounts[0], pyusdAddress);
+            if (provider) {
+                updateBalances(provider, accounts[0], pyusdAddress);
+            }
         }
     };
 
-    const handleChainChanged = () => {
+    const handleChainChanged = (): void => {
         window.location.reload();
     };
 
-    const disconnectWallet = () => {
+    const disconnectWallet = (): void => {
         setIsConnected(false);
         setAccount('');
         setEthBalance('0');
@@ -149,11 +189,15 @@ const Popup = () => {
         setPaymentId(null);
     };
 
-    const scanCheckout = async () => {
+    const scanCheckout = async (): Promise<void> => {
         setLoading(true);
         setCurrentStep('analyzing');
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+            if (!tab || !tab.id) {
+                throw new Error('No active tab found');
+            }
 
             const response = await chrome.runtime.sendMessage({
                 action: 'analyzePage',
@@ -170,14 +214,14 @@ const Popup = () => {
             }
         } catch (error) {
             console.error('Scan failed:', error);
-            alert(`Scan failed: ${error.message}`);
+            alert(`Scan failed: ${(error as Error).message}`);
             setCurrentStep('idle');
         } finally {
             setLoading(false);
         }
     };
 
-    const processPayment = async () => {
+    const processPayment = async (): Promise<void> => {
         if (!checkoutData || !signer) {
             alert('Missing required data.');
             return;
@@ -231,14 +275,14 @@ const Popup = () => {
 
             // Extract payment ID from event
             const depositEvent = depositReceipt.logs
-                .map(log => {
+                .map((log: any) => {
                     try {
                         return escrowContract.interface.parseLog(log);
                     } catch {
                         return null;
                     }
                 })
-                .find(event => event && event.name === 'PaymentDeposited');
+                .find((event: any) => event && event.name === 'PaymentDeposited');
 
             if (!depositEvent) {
                 throw new Error('Payment ID not found in transaction');
@@ -251,7 +295,7 @@ const Popup = () => {
             setCurrentStep('processing');
 
             // Step 3: Notify backend to process payment
-            const paymentResult = await chrome.runtime.sendMessage({
+            const paymentResult: PaymentResult = await chrome.runtime.sendMessage({
                 action: 'processCryptoPayment',
                 paymentData: {
                     paymentId: newPaymentId,
@@ -261,7 +305,7 @@ const Popup = () => {
                     currency: checkoutData.currency,
                     checkoutData: checkoutData,
                     orderId: orderId
-                }
+                } as PaymentData
             });
 
             if (paymentResult.success) {
@@ -271,14 +315,18 @@ const Popup = () => {
                 // Step 4: Fill payment form with virtual card
                 if (paymentResult.virtualCard) {
                     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                    await chrome.tabs.sendMessage(tab.id, {
-                        action: 'fillPaymentForm',
-                        virtualCard: paymentResult.virtualCard
-                    });
+                    if (tab && tab.id) {
+                        await chrome.tabs.sendMessage(tab.id, {
+                            action: 'fillPaymentForm',
+                            virtualCard: paymentResult.virtualCard
+                        });
+                    }
                 }
 
                 // Update balance
-                await updateBalances(provider, account, pyusdAddress);
+                if (provider) {
+                    await updateBalances(provider, account, pyusdAddress);
+                }
 
                 alert('Payment completed successfully!');
             } else {
@@ -287,7 +335,7 @@ const Popup = () => {
 
         } catch (error) {
             console.error('Payment failed:', error);
-            alert(`Payment failed: ${error.message}`);
+            alert(`Payment failed: ${(error as Error).message}`);
             setCurrentStep('idle');
             setTxStatus(null);
 
@@ -300,7 +348,7 @@ const Popup = () => {
         }
     };
 
-    const refundPayment = async () => {
+    const refundPayment = async (): Promise<void> => {
         if (!paymentId || !signer) {
             alert('No payment to refund');
             return;
@@ -329,24 +377,26 @@ const Popup = () => {
             setCheckoutData(null);
 
             // Update balance
-            await updateBalances(provider, account, pyusdAddress);
+            if (provider) {
+                await updateBalances(provider, account, pyusdAddress);
+            }
 
             alert('Refund completed successfully!');
         } catch (error) {
             console.error('Refund failed:', error);
-            alert(`Refund failed: ${error.message}`);
+            alert(`Refund failed: ${(error as Error).message}`);
         } finally {
             setLoading(false);
             setTxStatus(null);
         }
     };
 
-    const formatAddress = (addr) => {
+    const formatAddress = (addr: string): string => {
         if (!addr) return '';
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
 
-    const calculateTotal = () => {
+    const calculateTotal = (): { amount: number; fee: number; total: number } => {
         if (!checkoutData) return { amount: 0, fee: 0, total: 0 };
         const amount = parseFloat(checkoutData.amount);
         const fee = (amount * platformFee) / 100;

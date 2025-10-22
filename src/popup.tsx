@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ethers } from 'ethers';
+import { ethers, Contract, BrowserProvider, Signer } from 'ethers';
 import './index.css';
 import {
     ESCROW_ABI,
@@ -9,37 +9,82 @@ import {
     getNetworkName,
     PaymentStatus,
     SUPPORTED_CHAINS
-} from './config.js';
-import WalletBridge from './WalletBridge.js';
-import EthersProvider from './EthersProvider.js';
+} from './config';
+import WalletBridge from './WalletBridge';
+import EthersProvider from './EthersProvider';
 
-const Popup = () => {
-    const [provider, setProvider] = useState(null);
-    const [signer, setSigner] = useState(null);
-    const [account, setAccount] = useState('');
-    const [chainId, setChainId] = useState(null);
-    const [ethBalance, setEthBalance] = useState('0');
-    const [pyusdBalance, setPyusdBalance] = useState('0');
-    const [checkoutData, setCheckoutData] = useState(null);
-    const [isConnected, setIsConnected] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [txStatus, setTxStatus] = useState(null);
-    const [currentStep, setCurrentStep] = useState('idle');
-    const [useAI, setUseAI] = useState(false);
-    const [paymentId, setPaymentId] = useState(null);
-    const [platformFee, setPlatformFee] = useState(0);
-    const [escrowAddress, setEscrowAddress] = useState('');
-    const [pyusdAddress, setPyusdAddress] = useState('');
-    const [walletBridge] = useState(() => new WalletBridge());
-    const [virtualCard, setVirtualCard] = useState(null);
-    const [autoFillStatus, setAutoFillStatus] = useState(null);
-    const [copiedField, setCopiedField] = useState(null);
+// Interfaces
+interface CheckoutData {
+    url?: string;
+    amount: string;
+    currency: string;
+    merchantName: string;
+    method?: string;
+}
+
+interface VirtualCard {
+    cardNumber?: string;
+    number?: string;
+    expiry: string;
+    cvv: string;
+}
+
+interface AutoFillStatus {
+    success: boolean;
+    message: string;
+    filledFields?: {
+        cardNumber: boolean;
+        expiry: boolean;
+        cvv: boolean;
+    };
+    reason?: string;
+}
+
+interface PaymentData {
+    paymentId: string;
+    escrowAddress: string;
+    txHash: string;
+    amount: number;
+    currency: string;
+    checkoutData: CheckoutData;
+    orderId: string;
+}
+
+interface PaymentResult {
+    success: boolean;
+    virtualCard?: VirtualCard;
+    error?: string;
+}
+
+type CurrentStep = 'idle' | 'analyzing' | 'approving' | 'depositing' | 'processing' | 'complete';
+
+const Popup: React.FC = () => {
+    const [provider, setProvider] = useState<BrowserProvider | null>(null);
+    const [signer, setSigner] = useState<Signer | null>(null);
+    const [account, setAccount] = useState<string>('');
+    const [chainId, setChainId] = useState<number | null>(null);
+    const [ethBalance, setEthBalance] = useState<string>('0');
+    const [pyusdBalance, setPyusdBalance] = useState<string>('0');
+    const [checkoutData, setCheckoutData] = useState<CheckoutData | null>(null);
+    const [isConnected, setIsConnected] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [txStatus, setTxStatus] = useState<string | null>(null);
+    const [currentStep, setCurrentStep] = useState<CurrentStep>('idle');
+    const [useAI, setUseAI] = useState<boolean>(false);
+    const [paymentId, setPaymentId] = useState<string | null>(null);
+    const [platformFee, setPlatformFee] = useState<number>(0);
+    const [escrowAddress, setEscrowAddress] = useState<string>('');
+    const [pyusdAddress, setPyusdAddress] = useState<string>('');
+    const [walletBridge] = useState<WalletBridge>(() => new WalletBridge());
+    const [virtualCard, setVirtualCard] = useState<VirtualCard | null>(null);
+    const [autoFillStatus, setAutoFillStatus] = useState<AutoFillStatus | null>(null);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
 
     useEffect(() => {
         checkConnection();
     }, []);
 
-    const checkConnection = async () => {
+    const checkConnection = async (): Promise<void> => {
         try {
             console.log('🟣 [POPUP] Checking wallet availability...');
             const walletInfo = await walletBridge.checkWalletAvailable();
@@ -62,7 +107,7 @@ const Popup = () => {
         }
     };
 
-    const connectWallet = async () => {
+    const connectWallet = async (): Promise<void> => {
         setLoading(true);
         try {
             console.log('🟣 [POPUP] Starting wallet connection...');
@@ -126,13 +171,13 @@ const Popup = () => {
 
         } catch (err) {
             console.error('🔴 [POPUP] Wallet connection failed:', err);
-            alert(`Failed to connect: ${err.message}`);
+            alert(`Failed to connect: ${(err as Error).message}`);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadPlatformFee = async (prov, escrowAddr) => {
+    const loadPlatformFee = async (prov: BrowserProvider, escrowAddr: string): Promise<void> => {
         try {
             const escrow = new ethers.Contract(escrowAddr, ESCROW_ABI, prov);
             const feeBps = await escrow.platformFeeBps();
@@ -143,7 +188,7 @@ const Popup = () => {
         }
     };
 
-    const updateBalances = async (prov, userAccount, pyusdAddr) => {
+    const updateBalances = async (prov: BrowserProvider, userAccount: string, pyusdAddr: string): Promise<void> => {
         try {
             // Get ETH balance
             const ethBal = await prov.getBalance(userAccount);
@@ -158,20 +203,22 @@ const Popup = () => {
         }
     };
 
-    const handleAccountsChanged = (accounts) => {
+    const handleAccountsChanged = (accounts: string[]): void => {
         if (accounts.length === 0) {
             disconnectWallet();
         } else {
             setAccount(accounts[0]);
-            updateBalances(provider, accounts[0], pyusdAddress);
+            if (provider) {
+                updateBalances(provider, accounts[0], pyusdAddress);
+            }
         }
     };
 
-    const handleChainChanged = () => {
+    const handleChainChanged = (): void => {
         window.location.reload();
     };
 
-    const disconnectWallet = () => {
+    const disconnectWallet = (): void => {
         setIsConnected(false);
         setAccount('');
         setEthBalance('0');
@@ -181,7 +228,7 @@ const Popup = () => {
         setPaymentId(null);
     };
 
-    const scanCheckout = async () => {
+    const scanCheckout = async (): Promise<void> => {
         setLoading(true);
         setCurrentStep('analyzing');
         try {
@@ -206,14 +253,14 @@ const Popup = () => {
             }
         } catch (error) {
             console.error('Scan failed:', error);
-            alert(`Scan failed: ${error.message}`);
+            alert(`Scan failed: ${(error as Error).message}`);
             setCurrentStep('idle');
         } finally {
             setLoading(false);
         }
     };
 
-    const processPayment = async () => {
+    const processPayment = async (): Promise<void> => {
         if (!checkoutData || !signer) {
             alert('Missing required data.');
             return;
@@ -271,14 +318,14 @@ const Popup = () => {
 
             // Extract payment ID from event
             const depositEvent = depositReceipt.logs
-                .map(log => {
+                .map((log: any) => {
                     try {
                         return escrowContract.interface.parseLog(log);
                     } catch {
                         return null;
                     }
                 })
-                .find(event => event && event.name === 'PaymentDeposited');
+                .find((event: any) => event && event.name === 'PaymentDeposited');
 
             if (!depositEvent) {
                 throw new Error('Payment ID not found in transaction');
@@ -291,7 +338,7 @@ const Popup = () => {
             setCurrentStep('processing');
 
             // Step 3: Notify backend to process payment
-            const paymentResult = await chrome.runtime.sendMessage({
+            const paymentResult: PaymentResult = await chrome.runtime.sendMessage({
                 action: 'processCryptoPayment',
                 paymentData: {
                     paymentId: newPaymentId,
@@ -301,7 +348,7 @@ const Popup = () => {
                     currency: checkoutData.currency,
                     checkoutData: checkoutData,
                     orderId: orderId
-                }
+                } as PaymentData
             });
 
             if (paymentResult.success) {
@@ -340,13 +387,15 @@ const Popup = () => {
                         setAutoFillStatus({
                             success: false,
                             message: 'Could not auto-fill form. Please copy card details manually.',
-                            reason: tabError.message
+                            reason: (tabError as Error).message
                         });
                     }
                 }
 
                 // Update balance
-                await updateBalances(provider, account, pyusdAddress);
+                if (provider) {
+                    await updateBalances(provider, account, pyusdAddress);
+                }
 
                 alert('Payment completed successfully! Virtual card details are displayed below.');
             } else {
@@ -355,7 +404,7 @@ const Popup = () => {
 
         } catch (error) {
             console.error('Payment failed:', error);
-            alert(`Payment failed: ${error.message}`);
+            alert(`Payment failed: ${(error as Error).message}`);
             setCurrentStep('idle');
             setTxStatus(null);
 
@@ -368,7 +417,7 @@ const Popup = () => {
         }
     };
 
-    const refundPayment = async () => {
+    const refundPayment = async (): Promise<void> => {
         if (!paymentId || !signer) {
             alert('No payment to refund');
             return;
@@ -397,31 +446,33 @@ const Popup = () => {
             setCheckoutData(null);
 
             // Update balance
-            await updateBalances(provider, account, pyusdAddress);
+            if (provider) {
+                await updateBalances(provider, account, pyusdAddress);
+            }
 
             alert('Refund completed successfully!');
         } catch (error) {
             console.error('Refund failed:', error);
-            alert(`Refund failed: ${error.message}`);
+            alert(`Refund failed: ${(error as Error).message}`);
         } finally {
             setLoading(false);
             setTxStatus(null);
         }
     };
 
-    const formatAddress = (addr) => {
+    const formatAddress = (addr: string): string => {
         if (!addr) return '';
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
 
-    const calculateTotal = () => {
+    const calculateTotal = (): { amount: number; fee: number; total: number } => {
         if (!checkoutData) return { amount: 0, fee: 0, total: 0 };
         const amount = parseFloat(checkoutData.amount);
         const fee = (amount * platformFee) / 100;
         return { amount, fee, total: amount + fee };
     };
 
-    const copyToClipboard = async (text, fieldName) => {
+    const copyToClipboard = async (text: string, fieldName: string): Promise<void> => {
         try {
             await navigator.clipboard.writeText(text);
             setCopiedField(fieldName);
@@ -494,7 +545,6 @@ const Popup = () => {
 
                     {/* PYUSD Balance - Center & Large */}
                     <div className="flex justify-center mt-10 p-3">
-
                         <div className="border-[#e1c800]/70 bg-[#e1c800]/20 border backdrop-blur-lg rounded-lg w-full h-32 flex flex-col items-center justify-center gap-4">
                             <div className="inline-flex items-center gap-2">
                                 <img src="/pyusd.png" alt="PYUSD" className="w-8 h-8" />
@@ -513,24 +563,6 @@ const Popup = () => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* <div className="text-center mb-8">
-                            <div className="mb-6">
-                                <p className="text-6xl font-bold mb-2" style={{ color: '#e1c800' }}>
-                                    {parseFloat(pyusdBalance).toFixed(2)}
-                                </p>
-                                <p className="text-white text-opacity-80 text-2xl font-semibold">PYUSD</p>
-                            </div>
-
-                            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg px-4 py-3 mb-4">
-                                <p className="text-white text-opacity-60 text-xs mb-1">Connected Account</p>
-                                <p className="font-mono text-white text-sm">{formatAddress(account)}</p>
-                            </div>
-
-                            <div className="text-white text-opacity-60 text-sm">
-                                ETH: {parseFloat(ethBalance).toFixed(4)}
-                            </div>
-                        </div> */}
                     </div>
 
                     {/* Scan Button */}
@@ -654,7 +686,7 @@ const Popup = () => {
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs text-white text-opacity-60">Card Number</p>
                                                 <button
-                                                    onClick={() => copyToClipboard(virtualCard.cardNumber || virtualCard.number, 'cardNumber')}
+                                                    onClick={() => copyToClipboard(virtualCard.cardNumber || virtualCard.number || '', 'cardNumber')}
                                                     className="text-xs px-2 py-1 rounded transition-all"
                                                     style={{
                                                         backgroundColor: '#e1c800',
@@ -751,35 +783,6 @@ const Popup = () => {
                 </div>
             )}
 
-            {/* AI Toggle */}
-            {/* {isConnected && (
-                <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4 mb-4">
-                    <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-sm font-medium text-white">Use AI for page analysis</span>
-                        <input
-                            type="checkbox"
-                            checked={useAI}
-                            onChange={(e) => setUseAI(e.target.checked)}
-                            className="w-10 h-6"
-                        />
-                    </label>
-                    <p className="text-xs text-white text-opacity-60 mt-2">
-                        AI provides better accuracy but may be slower
-                    </p>
-                </div>
-            )} */}
-
-            {/* Scan Button */}
-            {/* {isConnected && !checkoutData && (
-                <button
-                    onClick={scanCheckout}
-                    disabled={loading}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium mb-4 transition-colors disabled:opacity-50"
-                >
-                    {currentStep === 'analyzing' ? 'Analyzing Page...' : 'Scan Checkout Page'}
-                </button>
-            )} */}
-
             {/* Escrow Info */}
             {isConnected && (
                 <div className="bg-white bg-opacity-5 rounded-lg p-4 mt-auto mx-3 mb-3">
@@ -792,5 +795,5 @@ const Popup = () => {
 };
 
 // Mount React app
-const root = createRoot(document.getElementById('root'));
+const root = createRoot(document.getElementById('root')!);
 root.render(<Popup />);
