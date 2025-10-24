@@ -5,6 +5,17 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
     plugins: [react(), tailwindcss(),],
     base: './', // Use relative paths for Chrome extension
+    define: {
+        // Polyfills for Node.js globals
+        global: 'globalThis',
+        'process.env': {}
+    },
+    resolve: {
+        alias: {
+            buffer: 'buffer',
+            process: 'process/browser'
+        }
+    },
     build: {
         outDir: 'dist',
         rollupOptions: {
@@ -16,8 +27,9 @@ export default defineConfig({
             },
             output: {
                 entryFileNames: '[name].js',
-                chunkFileNames: '[name].js',
-                assetFileNames: '[name].[ext]'
+                chunkFileNames: 'chunks/[name].js',
+                assetFileNames: '[name].[ext]',
+                format: 'es'
             }
         }
     }
