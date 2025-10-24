@@ -48,7 +48,7 @@
     ],
     "web_accessible_resources": [
         {
-            "resources": ["injected-nexus.js", "index.js", "index2.js"],
+            "resources": ["injected.js"],
             "matches": ["<all_urls>"]
         }
     ]

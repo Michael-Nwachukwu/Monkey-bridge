@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && vite build --config vite.injected.config.js && cp manifest.json nexus-frame.html dist/ && cp public/Screenshot_2025-10-20_at_3.27.48_PM-removebg-preview.png dist/ooga-logo.png",
+    "build": "vite build && cp manifest.json dist/ && cp public/Screenshot_2025-10-20_at_3.27.48_PM-removebg-preview.png dist/ooga-logo.png && cp public/pyusd.png dist/pyusd.png && cp public/ooga.svg dist/ooga.svg",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,7 +13,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@avail-project/nexus-core": "^0.0.1",
     "@tailwindcss/vite": "^4.1.14",
     "@types/chrome": "^0.1.24",
     "autoprefixer": "^10.4.21",

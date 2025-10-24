@@ -3,37 +3,6 @@ import browser from 'webextension-polyfill';
 
 console.log('[Content] 🚀 Content script loaded!');
 
-// Inject Nexus script into page context - EXACTLY like Nexus extension does
-const injectNexusScript = () => {
-  const container = document.head || document.documentElement;
-  const script = document.createElement('script');
-  const scriptUrl = browser.runtime.getURL('injected-nexus.js');
-  script.setAttribute('src', scriptUrl);
-  container.append(script);
-  console.log('[Content] ✅ Nexus script injected! URL:', scriptUrl);
-  script.remove(); // Remove tag after execution (script still runs)
-};
-
-// ONLY inject Nexus on checkout pages - don't spam every tab!
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isCheckoutPage()) {
-      console.log('[Content] Checkout page detected, injecting Nexus...');
-      injectNexusScript();
-    } else {
-      console.log('[Content] Not a checkout page, skipping Nexus injection');
-    }
-  });
-} else {
-  // DOM already loaded
-  if (isCheckoutPage()) {
-    console.log('[Content] Checkout page detected, injecting Nexus...');
-    injectNexusScript();
-  } else {
-    console.log('[Content] Not a checkout page, skipping Nexus injection');
-  }
-}
-
 // Payment field info interface
 interface PaymentFieldInfo {
     selector: string;
@@ -334,38 +303,6 @@ function setNativeValue(element: HTMLInputElement, value: string): void {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-  // Handle Nexus messages to forward to page
-  if (request.action === 'sendToPage') {
-    window.postMessage(request.message, '*');
-    sendResponse({ success: true });
-    return true;
-  }
-
-  // Check if Nexus script is ready
-  if (request.action === 'checkNexusReady') {
-    // Post a message to page asking for status
-    window.postMessage({ type: 'NEXUS_CHECK_READY' }, '*');
-
-    // Listen for response
-    const listener = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      if (event.data.type === 'NEXUS_SCRIPT_READY') {
-        window.removeEventListener('message', listener);
-        sendResponse({ ready: true });
-      }
-    };
-
-    window.addEventListener('message', listener);
-
-    // Timeout after 100ms
-    setTimeout(() => {
-      window.removeEventListener('message', listener);
-      sendResponse({ ready: false });
-    }, 100);
-
-    return true; // Async response
-  }
-
   if (request.action === 'checkIfCheckout') {
     sendResponse({ isCheckout: isCheckoutPage() });
     return true;

@@ -15,7 +15,6 @@ import {
 import WalletBridge from './WalletBridge';
 import EthersProvider from './EthersProvider';
 import SwapModal from './components/SwapModal';
-import BridgeSwapModal from './components/BridgeSwapModal';
 // Interfaces
 interface CheckoutData {
     url?: string;
@@ -83,23 +82,12 @@ const Popup: React.FC = () => {
     const [autoFillStatus, setAutoFillStatus] = useState<AutoFillStatus | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [loadingBalances, setLoadingBalances] = useState<boolean>(false);
-    const [nexusInitialized, setNexusInitialized] = useState<boolean>(false);
-    const [showBridgeSwap, setShowBridgeSwap] = useState<boolean>(false);
     const [requiredAmount, setRequiredAmount] = useState<number>(0);
-    const [showUnifiedBalances, setShowUnifiedBalances] = useState<boolean>(false);
-    const [unifiedBalances, setUnifiedBalances] = useState<UnifiedBalance[]>([]);
+    const [showSwapModal, setShowSwapModal] = useState<boolean>(false);
 
     useEffect(() => {
         checkConnection();
     }, []);
-
-    // Nexus SDK is always available (injected on every page)
-    useEffect(() => {
-        if (isConnected) {
-            // Just enable Nexus features when wallet is connected
-            setNexusInitialized(true);
-        }
-    }, [isConnected]);
 
     const checkConnection = async (): Promise<void> => {
         try {
@@ -288,9 +276,9 @@ const Popup: React.FC = () => {
         const totalAmount = amountInPyusd + feeAmount;
 
         if (parseFloat(pyusdBalance) < totalAmount) {
-            // Show bridge/swap modal instead of alert
+            // Show swap modal to swap tokens for PYUSD
             setRequiredAmount(totalAmount);
-            setShowBridgeSwap(true);
+            setShowSwapModal(true);
             return;
         }
 
@@ -502,57 +490,16 @@ const Popup: React.FC = () => {
         }
     };
 
-    const fetchUnifiedBalances = async (): Promise<void> => {
-        setLoadingBalances(true);
-        setShowUnifiedBalances(true);
-        try {
-            console.log('📊 Fetching unified balances from page...');
-
-            // Call the function in page context directly
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.id) {
-                throw new Error('No active tab');
-            }
-
-            const results = await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: () => {
-                    // Check if Nexus is available
-                    if (!(window as any).getNexusBalances) {
-                        throw new Error('Nexus SDK not loaded. Refresh the page and try again.');
-                    }
-                    return (window as any).getNexusBalances();
-                }
-            });
-
-            const balances = results[0].result;
-
-            if (!balances || balances.length === 0) {
-                throw new Error('No balances returned. Make sure your wallet is connected.');
-            }
-
-            setUnifiedBalances(balances);
-            setNexusInitialized(true);
-            console.log('✅ Balances fetched:', balances);
-        } catch (error) {
-            console.error('❌ Failed to fetch balances:', error);
-            setShowUnifiedBalances(false);
-            alert(`Failed to fetch balances: ${(error as Error).message}`);
-        } finally {
-            setLoadingBalances(false);
-        }
-    };
-
-    const handleBridgeSwapSuccess = async (): Promise<void> => {
+    const handleSwapSuccess = async (): Promise<void> => {
         // Close modal
-        setShowBridgeSwap(false);
+        setShowSwapModal(false);
 
         // Update PYUSD balance
         if (provider && account) {
             await updateBalances(provider, account, pyusdAddress);
         }
 
-        // Automatically retry payment after successful bridge/swap
+        // Automatically retry payment after successful swap
         if (checkoutData) {
             await processPayment();
         }
@@ -640,52 +587,6 @@ const Popup: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* View All Chains Button */}
-                    <div className="flex justify-center mt-4 p-3">
-                        <button
-                            onClick={fetchUnifiedBalances}
-                            disabled={!nexusInitialized || loadingBalances}
-                            className="px-6 py-2 rounded-lg font-medium text-sm transition-all disabled:opacity-50 hover:opacity-90 border"
-                            style={{
-                                backgroundColor: 'transparent',
-                                color: '#e1c800',
-                                borderColor: '#e1c800'
-                            }}
-                        >
-                            {loadingBalances ? 'Loading...' : 'View All Chains'}
-                        </button>
-                    </div>
-
-                    {/* Unified Balances Display */}
-                    {showUnifiedBalances && unifiedBalances.length > 0 && (
-                        <div className="p-3 mt-4">
-                            <div className="bg-[#e1c800]/20 border border-[#e1c800]/70 rounded-lg p-4">
-                                <div className="flex justify-between items-center mb-3">
-                                    <h3 className="text-white font-semibold text-sm">Multi-Chain Balances</h3>
-                                    <button
-                                        onClick={() => setShowUnifiedBalances(false)}
-                                        className="text-white text-opacity-60 hover:text-opacity-100 text-xs"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                    {unifiedBalances.map((balance, index) => (
-                                        <div
-                                            key={index}
-                                            className="bg-[#262f49]/50 rounded p-2 flex justify-between items-center"
-                                        >
-                                            <div>
-                                                <p className="text-white text-xs font-medium">{balance.token}</p>
-                                                <p className="text-white text-opacity-60 text-xs">Chain: {balance.chainId}</p>
-                                            </div>
-                                            <p className="text-white font-semibold text-sm">{parseFloat(balance.balance).toFixed(4)}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Scan Button */}
                     <div className="mt-auto p-3">
@@ -915,25 +816,14 @@ const Popup: React.FC = () => {
 
             {/* Swap Modal - For swapping tokens on Sepolia */}
             <SwapModal
-                isOpen={showBridgeSwap && !nexusInitialized}
-                onClose={() => setShowBridgeSwap(false)}
+                isOpen={showSwapModal}
+                onClose={() => setShowSwapModal(false)}
                 requiredPyusd={requiredAmount}
                 currentPyusd={parseFloat(pyusdBalance)}
                 userAddress={account}
                 provider={provider}
                 chainId={chainId || 11155111}
-                onSuccess={handleBridgeSwapSuccess}
-            />
-
-            {/* Bridge/Swap Modal - For cross-chain bridging + swapping */}
-            <BridgeSwapModal
-                isOpen={showBridgeSwap && nexusInitialized}
-                onClose={() => setShowBridgeSwap(false)}
-                requiredPyusd={requiredAmount}
-                currentPyusd={parseFloat(pyusdBalance)}
-                userAddress={account}
-                provider={provider}
-                onSuccess={handleBridgeSwapSuccess}
+                onSuccess={handleSwapSuccess}
             />
         </div>
     );
