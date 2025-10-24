@@ -124,14 +124,14 @@ const SwapModal: React.FC<SwapModalProps> = ({
       const addresses = getContractAddresses(chainId);
       const signer = await provider.getSigner();
 
+      // Use new swap-only functions that send PYUSD to user wallet
       const contractABI = [
-        'function swapAndDepositUSDC(uint256 usdcAmount, string orderId, string merchantUrl) returns (bytes32)',
-        'function swapAndDepositUSDT(uint256 usdtAmount, string orderId, string merchantUrl) returns (bytes32)',
-        'function swapAndDepositETH(string orderId, string merchantUrl) payable returns (bytes32)'
+        'function swapUSDCtoPYUSD(uint256 usdcAmount) returns (uint256)',
+        'function swapUSDTtoPYUSD(uint256 usdtAmount) returns (uint256)',
+        'function swapETHtoPYUSD() payable returns (uint256)'
       ];
 
       const contract = new ethers.Contract(addresses.escrow, contractABI, signer);
-      const orderId = `swap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       let tx;
       const amount = ethers.parseUnits(swapAmount, selectedToken === 'ETH' ? 18 : 6);
@@ -146,8 +146,8 @@ const SwapModal: React.FC<SwapModalProps> = ({
         const approveTx = await usdcContract.approve(addresses.escrow, amount);
         await approveTx.wait();
 
-        // Swap and deposit
-        tx = await contract.swapAndDepositUSDC(amount, orderId, window.location.href);
+        // Swap only - PYUSD goes to user wallet
+        tx = await contract.swapUSDCtoPYUSD(amount);
       } else if (selectedToken === 'USDT') {
         // Approve USDT
         const usdtContract = new ethers.Contract(
@@ -158,11 +158,11 @@ const SwapModal: React.FC<SwapModalProps> = ({
         const approveTx = await usdtContract.approve(addresses.escrow, amount);
         await approveTx.wait();
 
-        // Swap and deposit
-        tx = await contract.swapAndDepositUSDT(amount, orderId, window.location.href);
+        // Swap only - PYUSD goes to user wallet
+        tx = await contract.swapUSDTtoPYUSD(amount);
       } else {
-        // Swap ETH
-        tx = await contract.swapAndDepositETH(orderId, window.location.href, {
+        // Swap ETH only - PYUSD goes to user wallet
+        tx = await contract.swapETHtoPYUSD({
           value: amount
         });
       }
@@ -206,8 +206,14 @@ const SwapModal: React.FC<SwapModalProps> = ({
           </p>
         </div>
 
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            💡 <strong>How it works:</strong> Swap your tokens to PYUSD. The PYUSD will be sent to your wallet, then you can retry the payment.
+          </p>
+        </div>
+
         <p className="text-sm text-gray-600 mb-4">
-          Swap other tokens to PYUSD on Sepolia:
+          Select token to swap to PYUSD:
         </p>
 
         {/* Token Selection */}
@@ -220,11 +226,10 @@ const SwapModal: React.FC<SwapModalProps> = ({
               <button
                 key={token}
                 onClick={() => setSelectedToken(token)}
-                className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${
-                  selectedToken === token
+                className={`flex-1 py-3 px-4 rounded-lg border-2 transition ${selectedToken === token
                     ? 'border-[#e1c800] bg-yellow-50'
                     : 'border-gray-200 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 <div className="font-semibold">{token}</div>
                 <div className="text-xs text-gray-500 mt-1">
@@ -283,11 +288,11 @@ const SwapModal: React.FC<SwapModalProps> = ({
           className="w-full py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
           style={{ backgroundColor: '#e1c800', color: '#262f49' }}
         >
-          {loading ? 'Swapping...' : `Swap ${selectedToken} to PYUSD`}
+          {loading ? 'Swapping...' : `Swap ${selectedToken} for PYUSD`}
         </button>
 
         <p className="text-xs text-gray-500 text-center mt-4">
-          Swaps are powered by Uniswap V2 on Sepolia
+          ⚡ PYUSD will be sent to your wallet • Powered by Uniswap V2
         </p>
       </div>
     </div>

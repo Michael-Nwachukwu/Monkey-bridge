@@ -32,7 +32,7 @@ export const CONTRACTS: ContractsConfig = {
   },
   // Sepolia Testnet
   sepolia: {
-    escrow: '0x24f77F9131CD3DFf4a564259C674803100EA91B2',
+    escrow: '0x99035Fef25B54158d198BA9718090FebCbCE10B7', // Updated with swap-only functions
     pyusd: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9', // PYUSD on Sepolia
     chainId: 11155111
   },

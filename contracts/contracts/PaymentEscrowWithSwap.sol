@@ -352,6 +352,106 @@ contract PaymentEscrowWithSwap is AccessControl, ReentrancyGuard, Pausable {
         emit PaymentDeposited(paymentId, msg.sender, amount, fee, orderId);
     }
 
+    // ========== SWAP-ONLY FUNCTIONS (Send PYUSD to user, not escrow) ==========
+
+    /**
+     * @dev Swap USDC to PYUSD and send to user's wallet
+     * @notice Use this when you only need to swap without immediate payment
+     * @param usdcAmount Amount of USDC to swap
+     * @return pyusdReceived Amount of PYUSD received by the user
+     */
+    function swapUSDCtoPYUSD(
+        uint256 usdcAmount
+    ) external nonReentrant whenNotPaused returns (uint256 pyusdReceived) {
+        require(usdcAmount > 0, "Amount must be > 0");
+
+        // Transfer USDC from user
+        usdcToken.safeTransferFrom(msg.sender, address(this), usdcAmount);
+
+        // Approve router
+        usdcToken.forceApprove(address(uniswapRouter), usdcAmount);
+
+        // Swap USDC to PYUSD
+        address[] memory path = new address[](2);
+        path[0] = address(usdcToken);
+        path[1] = address(pyusdToken);
+
+        uint256 minPyusdOut = _calculateMinAmountOut(usdcAmount, path);
+
+        uint[] memory amounts = uniswapRouter.swapExactTokensForTokens(
+            usdcAmount,
+            minPyusdOut,
+            path,
+            msg.sender, // Send PYUSD directly to user
+            block.timestamp + 300
+        );
+
+        pyusdReceived = amounts[1];
+        emit TokensSwapped(msg.sender, address(usdcToken), usdcAmount, pyusdReceived);
+    }
+
+    /**
+     * @dev Swap USDT to PYUSD and send to user's wallet
+     * @notice Use this when you only need to swap without immediate payment
+     * @param usdtAmount Amount of USDT to swap
+     * @return pyusdReceived Amount of PYUSD received by the user
+     */
+    function swapUSDTtoPYUSD(
+        uint256 usdtAmount
+    ) external nonReentrant whenNotPaused returns (uint256 pyusdReceived) {
+        require(usdtAmount > 0, "Amount must be > 0");
+
+        // Transfer USDT from user
+        usdtToken.safeTransferFrom(msg.sender, address(this), usdtAmount);
+
+        // Approve router
+        usdtToken.forceApprove(address(uniswapRouter), usdtAmount);
+
+        // Swap USDT to PYUSD
+        address[] memory path = new address[](2);
+        path[0] = address(usdtToken);
+        path[1] = address(pyusdToken);
+
+        uint256 minPyusdOut = _calculateMinAmountOut(usdtAmount, path);
+
+        uint[] memory amounts = uniswapRouter.swapExactTokensForTokens(
+            usdtAmount,
+            minPyusdOut,
+            path,
+            msg.sender, // Send PYUSD directly to user
+            block.timestamp + 300
+        );
+
+        pyusdReceived = amounts[1];
+        emit TokensSwapped(msg.sender, address(usdtToken), usdtAmount, pyusdReceived);
+    }
+
+    /**
+     * @dev Swap ETH to PYUSD and send to user's wallet
+     * @notice Use this when you only need to swap without immediate payment
+     * @return pyusdReceived Amount of PYUSD received by the user
+     */
+    function swapETHtoPYUSD() external payable nonReentrant whenNotPaused returns (uint256 pyusdReceived) {
+        require(msg.value > 0, "ETH amount must be > 0");
+
+        // Swap ETH to PYUSD
+        address[] memory path = new address[](2);
+        path[0] = wethAddress;
+        path[1] = address(pyusdToken);
+
+        uint256 minPyusdOut = _calculateMinAmountOut(msg.value, path);
+
+        uint[] memory amounts = uniswapRouter.swapExactETHForTokens{value: msg.value}(
+            minPyusdOut,
+            path,
+            msg.sender, // Send PYUSD directly to user
+            block.timestamp + 300
+        );
+
+        pyusdReceived = amounts[1];
+        emit TokensSwapped(msg.sender, wethAddress, msg.value, pyusdReceived);
+    }
+
     /**
      * @dev Get quote for swap (view function)
      */
