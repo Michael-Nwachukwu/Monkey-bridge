@@ -2,9 +2,51 @@
 
 const API_BASE_URL = 'http://localhost:3000'; // Local backend server
 
+// Transaction interface
+interface Transaction {
+    id: string;
+    status: 'pending' | 'verified' | 'completed' | 'failed';
+    cryptoTx: string;
+    amount: number;
+    currency: string;
+    timestamp: number;
+    verificationData?: any;
+    paymentResult?: any;
+    error?: string;
+}
+
+// Payment data interface
+interface PaymentData {
+    txHash: string;
+    amount: number;
+    currency: string;
+    checkoutData: CheckoutData;
+    escrowAddress: string;
+    paymentId?: string;
+    orderId?: string;
+}
+
+// Checkout data interface
+interface CheckoutData {
+    url: string;
+    timestamp: number;
+    amount: number;
+    currency: string;
+    merchantName: string;
+    items: any[];
+    paymentFields: Record<string, any>;
+    method?: string;
+}
+
+// Message interfaces
+interface Message {
+    action: string;
+    [key: string]: any;
+}
+
 // State management
-let activeTransactions = new Map();
-let checkoutPages = new Set();
+let activeTransactions = new Map<string, Transaction>();
+let checkoutPages = new Set<number>();
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(() => {
@@ -21,32 +63,34 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle extension icon click - open side panel
-chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ tabId: tab.id });
+chrome.action.onClicked.addListener((tab: chrome.tabs.Tab) => {
+  chrome.sidePanel.open({ tabId: tab.id! });
 });
 
 // Listen for checkout page detection
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: Message, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   if (message.action === 'checkoutDetected') {
-    checkoutPages.add(sender.tab.id);
+    if (sender.tab?.id) {
+      checkoutPages.add(sender.tab.id);
 
-    // Badge to show checkout detected
-    chrome.action.setBadgeText({
-      text: '💳',
-      tabId: sender.tab.id
-    });
+      // Badge to show checkout detected
+      chrome.action.setBadgeText({
+        text: '💳',
+        tabId: sender.tab.id
+      });
 
-    chrome.action.setBadgeBackgroundColor({
-      color: '#10b981',
-      tabId: sender.tab.id
-    });
+      chrome.action.setBadgeBackgroundColor({
+        color: '#10b981',
+        tabId: sender.tab.id
+      });
 
-    // Notify popup if open
-    chrome.runtime.sendMessage({
-      action: 'checkoutPageFound',
-      tabId: sender.tab.id,
-      url: message.url
-    }).catch(() => {}); // Ignore if popup not open
+      // Notify popup if open
+      chrome.runtime.sendMessage({
+        action: 'checkoutPageFound',
+        tabId: sender.tab.id,
+        url: message.url
+      }).catch(() => {}); // Ignore if popup not open
+    }
   }
 
   if (message.action === 'analyzePage') {
@@ -80,7 +124,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Analyze checkout page
-async function analyzePage(tabId, useAI = false) {
+async function analyzePage(tabId: number, useAI: boolean = false): Promise<CheckoutData> {
   // First try script-based extraction
   const scriptResult = await chrome.tabs.sendMessage(tabId, {
     action: 'parsePageScript'
@@ -112,7 +156,7 @@ async function analyzePage(tabId, useAI = false) {
 }
 
 // Send page data to backend for AI analysis
-async function analyzeWithAI(pageContext) {
+async function analyzeWithAI(pageContext: any): Promise<CheckoutData> {
   const response = await fetch(`${API_BASE_URL}/api/analyze-checkout`, {
     method: 'POST',
     headers: {
@@ -130,7 +174,7 @@ async function analyzeWithAI(pageContext) {
 }
 
 // Process crypto payment flow
-async function processCryptoPayment(paymentData) {
+async function processCryptoPayment(paymentData: PaymentData): Promise<{ success: boolean; transactionId: string; virtualCard?: any; message?: string; error?: string }> {
   const { txHash, amount, currency, checkoutData } = paymentData;
 
   // Create transaction record
@@ -213,19 +257,19 @@ async function processCryptoPayment(paymentData) {
   } catch (error) {
     updateTransaction(transactionId, {
       status: 'failed',
-      error: error.message
+      error: (error as Error).message
     });
 
     return {
       success: false,
       transactionId,
-      error: error.message
+      error: (error as Error).message
     };
   }
 }
 
 // Get transaction status
-async function getTransactionStatus(txId) {
+async function getTransactionStatus(txId: string): Promise<Transaction> {
   const localTx = activeTransactions.get(txId);
 
   if (localTx) {
@@ -247,18 +291,18 @@ async function getTransactionStatus(txId) {
 }
 
 // Helper functions
-function generateTransactionId() {
+function generateTransactionId(): string {
   return `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function updateTransaction(txId, updates) {
+function updateTransaction(txId: string, updates: Partial<Transaction>): void {
   const tx = activeTransactions.get(txId);
   if (tx) {
     activeTransactions.set(txId, { ...tx, ...updates });
   }
 }
 
-async function saveTransaction(txId) {
+async function saveTransaction(txId: string): Promise<void> {
   const tx = activeTransactions.get(txId);
   if (!tx) return;
 
@@ -268,18 +312,18 @@ async function saveTransaction(txId) {
   await chrome.storage.local.set({ transactions });
 }
 
-async function getApiKey() {
+async function getApiKey(): Promise<string> {
   const { apiKey } = await chrome.storage.local.get('apiKey');
   return apiKey || '';
 }
 
 // Clean up on tab close
-chrome.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener((tabId: number) => {
   checkoutPages.delete(tabId);
 });
 
 // Listen for network changes to update badge
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
   if (changeInfo.status === 'complete') {
     // Clear badge if not checkout page
     if (!checkoutPages.has(tabId)) {

@@ -1,4 +1,67 @@
-// Content Script - Runs on every webpage to analyze checkout pages
+// Content Script - Runs on every webpage
+import browser from 'webextension-polyfill';
+
+console.log('[Content] 🚀 Content script loaded!');
+
+// Payment field info interface
+interface PaymentFieldInfo {
+    selector: string;
+    id: string;
+    name: string;
+    xpath: string;
+}
+
+// Checkout data interface
+interface CheckoutData {
+    url: string;
+    timestamp: number;
+    amount: number | null;
+    currency: string;
+    merchantName: string | null;
+    items: any[];
+    paymentFields: Record<string, PaymentFieldInfo>;
+}
+
+// Page context interface
+interface PageContext {
+    html: string;
+    url: string;
+    title: string;
+    visibleText: string;
+    forms: FormInfo[];
+}
+
+// Form info interface
+interface FormInfo {
+    action: string;
+    method: string;
+    fields: FormFieldInfo[];
+}
+
+// Form field info interface
+interface FormFieldInfo {
+    type: string;
+    name: string;
+    id: string;
+    placeholder: string;
+}
+
+// Virtual card data interface
+interface VirtualCardData {
+    cardNumber: string;
+    expiry: string;
+    cvv: string;
+}
+
+// Fill result interface
+interface FillResult {
+    success: boolean;
+    filledFields: {
+        cardNumber: boolean;
+        expiry: boolean;
+        cvv: boolean;
+    };
+}
 
 // DOM Selectors for common checkout patterns
 const CHECKOUT_PATTERNS = {
@@ -53,7 +116,7 @@ const CHECKOUT_PATTERNS = {
 };
 
 // Check if current page is a checkout page
-function isCheckoutPage() {
+function isCheckoutPage(): boolean {
   // Safety check - don't run if body isn't ready
   if (!document.body) {
     return false;
@@ -71,8 +134,8 @@ function isCheckoutPage() {
 }
 
 // Extract checkout data using script-based approach
-function extractCheckoutDataScript() {
-  const data = {
+function extractCheckoutDataScript(): CheckoutData {
+  const data: CheckoutData = {
     url: window.location.href,
     timestamp: Date.now(),
     amount: null,
@@ -86,7 +149,7 @@ function extractCheckoutDataScript() {
   for (const selector of CHECKOUT_PATTERNS.priceSelectors) {
     const element = document.querySelector(selector);
     if (element) {
-      const text = element.innerText || element.textContent || '';
+      const text = element.textContent || '';
       const priceMatch = text.match(/[\$€£]?\s*(\d+[,.]?\d*\.?\d*)/);
       if (priceMatch) {
         data.amount = parseFloat(priceMatch[1].replace(',', ''));
@@ -102,14 +165,14 @@ function extractCheckoutDataScript() {
   }
 
   // Extract merchant name
-  data.merchantName = document.querySelector('meta[property="og:site_name"]')?.content ||
+  data.merchantName = document.querySelector('meta[property="og:site_name"]')?.getAttribute('content') ||
                       document.querySelector('title')?.textContent?.split('|')[0]?.trim() ||
                       window.location.hostname;
 
   // Find payment form fields
   for (const [fieldType, selectors] of Object.entries(CHECKOUT_PATTERNS.paymentFields)) {
     for (const selector of selectors) {
-      const field = document.querySelector(selector);
+      const field = document.querySelector(selector) as HTMLInputElement | null;
       if (field) {
         data.paymentFields[fieldType] = {
           selector: selector,
@@ -126,7 +189,7 @@ function extractCheckoutDataScript() {
 }
 
 // Get XPath of an element
-function getXPath(element) {
+function getXPath(element: Element): string {
   if (element.id) return `//*[@id="${element.id}"]`;
   if (element === document.body) return '/html/body';
 
@@ -136,46 +199,51 @@ function getXPath(element) {
   for (let i = 0; i < siblings.length; i++) {
     const sibling = siblings[i];
     if (sibling === element) {
-      return getXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
+      return getXPath(element.parentNode as Element) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
     }
-    if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+    if (sibling.nodeType === 1 && (sibling as Element).tagName === element.tagName) {
       ix++;
     }
   }
+
+  return '';
 }
 
 // Extract page screenshot for AI analysis
-async function capturePageContext() {
+async function capturePageContext(): Promise<PageContext> {
   return {
     html: document.documentElement.outerHTML,
     url: window.location.href,
     title: document.title,
     // Capture visible text content
     visibleText: Array.from(document.querySelectorAll('body *'))
-      .filter(el => {
-        const style = window.getComputedStyle(el);
+      .filter((el: Element) => {
+        const style = window.getComputedStyle(el as HTMLElement);
         return style.display !== 'none' && style.visibility !== 'hidden';
       })
-      .map(el => el.innerText || el.textContent || '')
-      .filter(text => text && text.trim().length > 0)
+      .map((el: Element) => el.textContent || '')
+      .filter((text: string) => text && text.trim().length > 0)
       .slice(0, 100) // Limit to first 100 text elements
       .join('\n'),
     // Capture form structure
-    forms: Array.from(document.forms).map(form => ({
+    forms: Array.from(document.forms).map((form: HTMLFormElement) => ({
       action: form.action,
       method: form.method,
-      fields: Array.from(form.elements).map(el => ({
-        type: el.type,
-        name: el.name,
-        id: el.id,
-        placeholder: el.placeholder
-      }))
+      fields: Array.from(form.elements).map((el: Element) => {
+        const input = el as HTMLInputElement;
+        return {
+          type: input.type,
+          name: input.name,
+          id: input.id,
+          placeholder: input.placeholder
+        };
+      })
     }))
   };
 }
 
 // Fill payment form with virtual card data
-function fillPaymentForm(virtualCardData) {
+function fillPaymentForm(virtualCardData: VirtualCardData): FillResult {
   const { cardNumber, expiry, cvv } = virtualCardData;
 
   // Find and fill card number
@@ -213,16 +281,16 @@ function fillPaymentForm(virtualCardData) {
 }
 
 // Helper to find element from multiple selectors
-function findElement(selectors) {
+function findElement(selectors: string[]): HTMLInputElement | null {
   for (const selector of selectors) {
-    const el = document.querySelector(selector);
+    const el = document.querySelector(selector) as HTMLInputElement | null;
     if (el) return el;
   }
   return null;
 }
 
 // Properly set value on React/Vue controlled inputs
-function setNativeValue(element, value) {
+function setNativeValue(element: HTMLInputElement, value: string): void {
   const valueSetter = Object.getOwnPropertyDescriptor(element, 'value')?.set ||
                       Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
 
@@ -234,14 +302,16 @@ function setNativeValue(element, value) {
 }
 
 // Listen for messages from popup/background
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   if (request.action === 'checkIfCheckout') {
     sendResponse({ isCheckout: isCheckoutPage() });
+    return true;
   }
 
   if (request.action === 'parsePageScript') {
     const data = extractCheckoutDataScript();
     sendResponse({ success: true, data });
+    return true;
   }
 
   if (request.action === 'parsePageAI') {
@@ -254,6 +324,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'fillPaymentForm') {
     const result = fillPaymentForm(request.virtualCard);
     sendResponse(result);
+    return true;
   }
 
   if (request.action === 'highlightFields') {
@@ -264,7 +335,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       cardField.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.5)';
     }
     sendResponse({ highlighted: true });
+    return true;
   }
+
+  return false;
 });
 
 // Auto-detect checkout pages and notify extension

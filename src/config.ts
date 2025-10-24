@@ -1,7 +1,23 @@
 // Configuration for CryptoPay Bridge Extension
 
+// Network configuration interface
+interface NetworkConfig {
+  escrow: string;
+  pyusd: string;
+  chainId: number;
+}
+
+// Contract addresses configuration
+interface ContractsConfig {
+  mainnet: NetworkConfig;
+  polygon: NetworkConfig;
+  sepolia: NetworkConfig;
+  mumbai: NetworkConfig;
+  localhost: NetworkConfig;
+}
+
 // Contract addresses (update after deployment)
-export const CONTRACTS = {
+export const CONTRACTS: ContractsConfig = {
   // Ethereum Mainnet
   mainnet: {
     escrow: '0x...', // Update with deployed address
@@ -16,7 +32,7 @@ export const CONTRACTS = {
   },
   // Sepolia Testnet
   sepolia: {
-    escrow: '0x87E2202dD12a985afD0cC8f27511d8f428574f68',
+    escrow: '0x99035Fef25B54158d198BA9718090FebCbCE10B7', // Updated with swap-only functions
     pyusd: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9', // PYUSD on Sepolia
     chainId: 11155111
   },
@@ -35,7 +51,7 @@ export const CONTRACTS = {
 };
 
 // Escrow contract ABI (minimal - only functions we need)
-export const ESCROW_ABI = [
+export const ESCROW_ABI: string[] = [
   'function depositPayment(uint256 amount, string calldata orderId, string calldata merchantUrl) external returns (bytes32 paymentId)',
   'function releasePayment(bytes32 paymentId, address recipient) external',
   'function refundPayment(bytes32 paymentId) external',
@@ -53,7 +69,7 @@ export const ESCROW_ABI = [
 ];
 
 // PYUSD Token ABI (minimal)
-export const PYUSD_ABI = [
+export const PYUSD_ABI: string[] = [
   'function balanceOf(address owner) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
   'function approve(address spender, uint256 amount) returns (bool)',
@@ -61,7 +77,7 @@ export const PYUSD_ABI = [
 ];
 
 // Payment status enum (must match contract)
-export const PaymentStatus = {
+export const PaymentStatus: Record<string, number> = {
   Pending: 0,
   Processing: 1,
   Completed: 2,
@@ -69,8 +85,22 @@ export const PaymentStatus = {
   Disputed: 4
 };
 
+// API endpoints configuration
+interface ApiEndpoints {
+  analyzeCheckout: string;
+  verifyPayment: string;
+  executePayment: string;
+  transactionStatus: string;
+}
+
+// API configuration interface
+interface ApiConfig {
+  baseUrl: string;
+  endpoints: ApiEndpoints;
+}
+
 // Backend API configuration
-export const API_CONFIG = {
+export const API_CONFIG: ApiConfig = {
   baseUrl: process.env.NODE_ENV === 'production'
     ? 'https://your-backend.com'
     : 'http://localhost:3000',
@@ -82,8 +112,17 @@ export const API_CONFIG = {
   }
 };
 
+// Default settings interface
+interface DefaultSettings {
+  preferredNetwork: keyof ContractsConfig;
+  useAI: boolean;
+  maxSlippage: number;
+  escrowTimeout: number;
+  autoApprove: boolean;
+}
+
 // Default settings
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: DefaultSettings = {
   preferredNetwork: 'sepolia', // Sepolia testnet
   useAI: false,
   maxSlippage: 0.5, // 0.5%
@@ -92,7 +131,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 // Helper to get contract addresses for current network
-export function getContractAddresses(chainId) {
+export function getContractAddresses(chainId: number): NetworkConfig {
   const network = Object.entries(CONTRACTS).find(
     ([_, config]) => config.chainId === chainId
   );
@@ -105,7 +144,7 @@ export function getContractAddresses(chainId) {
 }
 
 // Helper to get network name from chain ID
-export function getNetworkName(chainId) {
+export function getNetworkName(chainId: number): string {
   const network = Object.entries(CONTRACTS).find(
     ([_, config]) => config.chainId === chainId
   );
@@ -114,10 +153,16 @@ export function getNetworkName(chainId) {
 }
 
 // Supported chain IDs
-export const SUPPORTED_CHAINS = Object.values(CONTRACTS).map(c => c.chainId);
+export const SUPPORTED_CHAINS: number[] = Object.values(CONTRACTS).map(c => c.chainId);
 
 // Gas estimation multipliers
-export const GAS_MULTIPLIERS = {
+interface GasMultipliers {
+  deposit: number;
+  release: number;
+  refund: number;
+}
+
+export const GAS_MULTIPLIERS: GasMultipliers = {
   deposit: 1.2, // 20% buffer
   release: 1.1,
   refund: 1.1

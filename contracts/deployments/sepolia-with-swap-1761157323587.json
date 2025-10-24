@@ -1,0 +1,12 @@
+{
+  "network": "sepolia",
+  "escrowAddress": "0x24f77F9131CD3DFf4a564259C674803100EA91B2",
+  "pyusdAddress": "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
+  "usdcAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+  "usdtAddress": "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0",
+  "uniswapRouter": "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3",
+  "backendWallet": "0xB47d52d931cC06e4269D5EB87Cb1D8F2A07e9e62",
+  "deployer": "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f",
+  "timestamp": "2025-10-22T18:22:03.349Z",
+  "blockNumber": 9467545
+}

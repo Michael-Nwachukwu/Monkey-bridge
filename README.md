@@ -4,7 +4,7 @@
 
 ## Overview
 
-Monkey Bridge is a Chrome extension that enables users to pay with PYUSD cryptocurrency on websites that only accept traditional payment methods (credit/debit cards). It uses a secure escrow smart contract to hold funds until payment is processed, then generates virtual card details to complete the merchant checkout.
+Monkey Bridge is a Browser extension that enables users to pay with PYUSD cryptocurrency on websites that only accept traditional payment methods (credit/debit cards). It uses a secure escrow smart contract to hold funds until payment is processed, then generates virtual card details to complete the merchant checkout.
 
 ### How It Works
 
