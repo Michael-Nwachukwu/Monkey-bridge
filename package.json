@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp manifest.json dist/ && cp public/Screenshot_2025-10-20_at_3.27.48_PM-removebg-preview.png dist/ooga-logo.png && cp public/pyusd.png dist/pyusd.png && cp public/ooga.svg dist/ooga.svg",
+    "build": "vite build && cp manifest.json dist/ && cp public/bridge-icon-16.png dist/ && cp public/bridge-icon-48.png dist/ && cp public/bridge-icon-128.png dist/ && cp public/pyusd.png dist/pyusd.png && cp public/ooga.svg dist/ooga.svg",
+    "icon": "node scripts/convert-bridge-png.js",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19.2.2",
     "@types/webextension-polyfill": "^0.12.4",
     "@vitejs/plugin-react": "^5.0.4",
+    "sharp": "^0.34.4",
     "tailwindcss": "^4.1.14",
     "typescript": "^5.9.3",
     "vite": "^7.1.9"
